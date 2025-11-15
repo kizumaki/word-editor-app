@@ -50,15 +50,20 @@ def get_speaker_color(speaker_name):
         
     return speaker_color_map[speaker_name]
 
-# Define regex patterns for speakers and timecodes
+# Define regex patterns for speakers and timecodes and HTML tags
 SPEAKER_REGEX = re.compile(r"^([A-Z][a-z\s&]+):\s*", re.IGNORECASE)
 TIMECODE_REGEX = re.compile(r"^\d{2}:\d{2}:\d{2},\d{3}\s+-->\s+\d{2}:\d{2}:\d{2},\d{3}$")
+HTML_TAG_REGEX = re.compile(r"(</?[ibu]>)+", re.IGNORECASE)
+HTML_CONTENT_REGEX = re.compile(r"((?:</?[ibu]>)+)(.*?)(?:</?[ibu]>)+", re.IGNORECASE | re.DOTALL)
+
 
 def set_all_text_formatting(doc):
-    """Applies Times New Roman 12pt, Single Spacing, and removes space after paragraph."""
+    """Applies Times New Roman 12pt and standard line spacing to all runs/paragraphs."""
     for paragraph in doc.paragraphs:
-        # Ensure single line spacing and no space after to achieve 'one line gap'
+        # Set line spacing to Single
         paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
+        
+        # Ensure all paragraphs start with 0 space after, we will manually add space for content paragraphs
         paragraph.paragraph_format.space_after = Pt(0) 
         
         for run in paragraph.runs:
@@ -80,16 +85,12 @@ def process_docx(uploaded_file, file_name_without_ext):
     document = Document(io.BytesIO(uploaded_file.read()))
     
     # --- A. Set Main Title (Size 25, 2 blank lines after) ---
-    # Delete the current first paragraph to ensure the new title is clean
-    if document.paragraphs:
-        # Move runs from the first paragraph to the second to delete the first one safely
-        first_paragraph = document.paragraphs[0]
-        # Clear content and then set the new title to the FIRST PARAGRAPH
-        first_paragraph.text = file_name_without_ext.upper()
-    else:
-        first_paragraph = document.add_paragraph(file_name_without_ext.upper())
+    if not document.paragraphs:
+        document.add_paragraph()
         
-    title_paragraph = first_paragraph
+    title_paragraph = document.paragraphs[0]
+        
+    title_paragraph.text = file_name_without_ext.upper()
     title_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
     
     if title_paragraph.runs:
@@ -98,29 +99,22 @@ def process_docx(uploaded_file, file_name_without_ext):
         title_run = title_paragraph.add_run(title_paragraph.text)
         
     title_run.font.name = 'Times New Roman'
-    title_run.font.size = Pt(25) # Set to 25pt
+    title_run.font.size = Pt(25) 
     title_run.bold = True
     
-    # FIX: Insert two blank paragraphs immediately AFTER the title paragraph
-    # We insert them *before* the current second paragraph (index 1)
-    
-    # 1. Insert first blank paragraph
-    document.paragraphs[0]._insert_paragraph_before()
-    # 2. Insert second blank paragraph
-    document.paragraphs[0]._insert_paragraph_before()
+    # Add two blank paragraphs *after* the title paragraph to ensure two empty lines
+    document.add_paragraph() # Dòng trống 1
+    document.add_paragraph() # Dòng trống 2
 
-    # The title is now the 3rd paragraph (index 2) in the list after two blanks were added.
-    # We must ensure the correct logic is applied to the content starting from index 3.
-    
     # --- B. Process other paragraphs ---
     
     paragraphs_to_remove = []
     all_paragraphs = list(document.paragraphs)
 
-    # FIX: Start iteration from the 4th paragraph (index 3) which is the first content line.
+    # Start iteration from the 4th paragraph (index 3) which is the first potential content line.
     for i, paragraph in enumerate(all_paragraphs):
         
-        if i <= 2: # Skip the two blank paragraphs and the title paragraph (which is now index 2)
+        if i <= 2: # Skip the title (0) and the two blank paragraphs (1, 2)
             continue
             
         paragraph.style = document.styles['Normal']
@@ -139,6 +133,9 @@ def process_docx(uploaded_file, file_name_without_ext):
             
         # --- B.3 Bold Speaker Name and Random Font Color ---
         else:
+            # FIX: Apply Pt(6) space after for content paragraphs (Close distance)
+            paragraph.paragraph_format.space_after = Pt(6)
+            
             speaker_match = SPEAKER_REGEX.match(text)
             if speaker_match:
                 speaker_full = speaker_match.group(0) 
@@ -153,10 +150,65 @@ def process_docx(uploaded_file, file_name_without_ext):
                 # Run for the speaker name (Bold and Font Color)
                 run_speaker = paragraph.add_run(speaker_full)
                 run_speaker.font.bold = True
-                run_speaker.font.color.rgb = font_color_object # Apply as Font Color
+                run_speaker.font.color.rgb = font_color_object 
                 
-                # Run for the rest of the text
-                paragraph.add_run(rest_of_text)
+                # --- B.4 Process HTML tags within the rest of the text ---
+                
+                current_text = rest_of_text
+                
+                # Find all HTML content (e.g., <i>(Vọng lại:)</i>)
+                matches = list(HTML_CONTENT_REGEX.finditer(current_text))
+
+                last_end = 0
+                for match in matches:
+                    full_match = match.group(0)
+                    tag_text = match.group(2)
+                    start, end = match.span()
+
+                    # Add text BEFORE the tag (if any)
+                    if start > last_end:
+                        paragraph.add_run(current_text[last_end:start])
+                    
+                    # Add the HTML content (Bold and Italic)
+                    run_html = paragraph.add_run(tag_text)
+                    run_html.font.bold = True
+                    run_html.font.italic = True
+                    
+                    last_end = end
+
+                # Add remaining text AFTER the last tag
+                if last_end < len(current_text):
+                    paragraph.add_run(current_text[last_end:])
+
+            # If no speaker is found, just process the text for HTML tags (if it's not a timecode)
+            else:
+                # The paragraph already contains the text, now we re-process runs
+                current_text = paragraph.text.strip()
+                paragraph.text = ""
+                
+                matches = list(HTML_CONTENT_REGEX.finditer(current_text))
+                
+                last_end = 0
+                for match in matches:
+                    full_match = match.group(0)
+                    tag_text = match.group(2)
+                    start, end = match.span()
+
+                    # Add text BEFORE the tag (if any)
+                    if start > last_end:
+                        paragraph.add_run(current_text[last_end:start])
+                    
+                    # Add the HTML content (Bold and Italic)
+                    run_html = paragraph.add_run(tag_text)
+                    run_html.font.bold = True
+                    run_html.font.italic = True
+                    
+                    last_end = end
+
+                # Add remaining text AFTER the last tag
+                if last_end < len(current_text):
+                    paragraph.add_run(current_text[last_end:])
+
 
     # Delete the content of paragraphs identified as line numbers
     for paragraph in paragraphs_to_remove:
