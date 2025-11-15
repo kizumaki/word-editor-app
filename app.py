@@ -3,60 +3,58 @@ from docx import Document
 from docx.shared import Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.section import WD_HEADER_FOOTER
+from docx.enum.text import WD_COLOR_INDEX # IMPORTANT: Import WD_COLOR_INDEX
 import io
 import os
 import re
 import random
 
-# --- 20 Highlight Colors (RGB) for better speaker differentiation ---
-HIGHLIGHT_COLORS_RGB = [
-    (255, 255, 0),    # Yellow
-    (153, 204, 255),  # Light Blue
-    (152, 251, 152),  # Pale Green
-    (255, 192, 203),  # Pink
-    (192, 192, 192),  # Silver/Gray
-    (255, 204, 153),  # Peach
-    (204, 204, 0),    # Olive
-    (255, 153, 204),  # Medium Pink
-    (170, 170, 255),  # Lavender
-    (255, 228, 181),  # Moccasin
-    (128, 0, 128),    # Purple 
-    (0, 128, 128),    # Teal 
-    (255, 165, 0),    # Orange
-    (0, 255, 255),    # Cyan
-    (255, 0, 255),    # Magenta
-    (100, 149, 237),  # Cornflower Blue
-    (255, 99, 71),    # Tomato Red 
-    (60, 179, 113),   # Medium Sea Green
-    (218, 112, 214),  # Orchid
-    (240, 230, 140)   # Khaki
+# --- FIXED: Use WD_COLOR_INDEX constants for highlight ---
+HIGHLIGHT_COLORS_INDEX = [
+    WD_COLOR_INDEX.YELLOW,
+    WD_COLOR_INDEX.BRIGHT_GREEN,
+    WD_COLOR_INDEX.TURQUOISE,
+    WD_COLOR_INDEX.VIOLET,
+    WD_COLOR_INDEX.PINK,
+    WD_COLOR_INDEX.RED,
+    WD_COLOR_INDEX.DARK_BLUE,
+    WD_COLOR_INDEX.TEAL,
+    WD_COLOR_INDEX.GRAY_25,
+    WD_COLOR_INDEX.GRAY_50,
+    WD_COLOR_INDEX.LIME,
+    WD_COLOR_INDEX.GOLD,
+    WD_COLOR_INDEX.LIGHT_ORANGE,
+    WD_COLOR_INDEX.PALE_BLUE,
+    WD_COLOR_INDEX.SEA_GREEN,
+    WD_COLOR_INDEX.BLUE,
+    WD_COLOR_INDEX.DARK_RED,
+    WD_COLOR_INDEX.DARK_YELLOW,
+    WD_COLOR_INDEX.AUTO, # Default/No Color (as a fallback)
+    WD_COLOR_INDEX.WHITE # Default/No Color (as a fallback)
 ]
 
-# Dictionary to store speaker names and their assigned highlight color (RGBColor object)
+# Dictionary to store speaker names and their assigned highlight color (WD_COLOR_INDEX object)
 speaker_color_map = {}
-# Create a list of RGBColor objects once
-used_colors = [RGBColor(r, g, b) for r, g, b in HIGHLIGHT_COLORS_RGB]
+# Use a shuffled list of WD_COLOR_INDEX constants
+used_colors = list(HIGHLIGHT_COLORS_INDEX)
 random.shuffle(used_colors)
 
 def get_speaker_color(speaker_name):
-    """Assigns a persistent random RGBColor object to a speaker."""
+    """Assigns a persistent random WD_COLOR_INDEX object to a speaker."""
     if speaker_name not in speaker_color_map:
         if used_colors:
             # Pop a color from the randomized list
-            color_object = used_colors.pop()
+            color_index = used_colors.pop()
         else:
-            # If all 20 colors are used, wrap around
-            r, g, b = random.choice(HIGHLIGHT_COLORS_RGB)
-            color_object = RGBColor(r, g, b)
+            # If all colors are used, wrap around
+            color_index = random.choice(HIGHLIGHT_COLORS_INDEX)
             
-        speaker_color_map[speaker_name] = color_object
+        speaker_color_map[speaker_name] = color_index
         
     return speaker_color_map[speaker_name]
 
 # Define regex patterns for speakers and timecodes
-# Speaker: Starts with a capitalized name/names followed by a colon (e.g., Ethan:, Ryan:, Ethan & Leo:)
 SPEAKER_REGEX = re.compile(r"^([A-Z][a-z\s&]+):\s*", re.IGNORECASE)
-# Timecode: e.g., 00:00:00,913 --> 00:00:04,520
 TIMECODE_REGEX = re.compile(r"^\d{2}:\d{2}:\d{2},\d{3}\s+-->\s+\d{2}:\d{2}:\d{2},\d{3}$")
 
 
@@ -64,21 +62,16 @@ def set_page_number(section):
     """Adds a page number to the right corner of the footer."""
     footer = section.footer
     
-    # Ensure footer has at least one paragraph
     if not footer.paragraphs:
         footer.add_paragraph()
         
     footer_paragraph = footer.paragraphs[0]
     
-    # 1. Add Field for the current page number
     run_page = footer_paragraph.add_run()
     run_page.add_field('PAGE')
     
-    # 2. Set right alignment
     footer_paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     
-    # 3. Apply general formatting to the page number run
-    # Ensure it only applies to the newly added run for consistency
     run_page.font.name = 'Times New Roman'
     run_page.font.size = Pt(12)
 
@@ -95,16 +88,16 @@ def set_all_text_formatting(doc):
 def process_docx(uploaded_file, file_name_without_ext):
     """Performs all required document modifications."""
     
-    # Reset color map for each processing run
+    # Reset color map and used colors for each processing run
     global speaker_color_map
     global used_colors
     speaker_color_map = {}
-    used_colors = [RGBColor(r, g, b) for r, g, b in HIGHLIGHT_COLORS_RGB]
+    used_colors = list(HIGHLIGHT_COLORS_INDEX)
     random.shuffle(used_colors)
     
     document = Document(io.BytesIO(uploaded_file.read()))
     
-    # --- A. Set Main Title (Uppercase, Center, Bold, Size 16) ---
+    # --- A. Set Main Title ---
     if document.paragraphs:
         title_paragraph = document.paragraphs[0]
     else:
@@ -126,16 +119,13 @@ def process_docx(uploaded_file, file_name_without_ext):
     
     paragraphs_to_remove = []
     
-    # Use a list comprehension to get paragraphs to avoid issues with modification during iteration
     all_paragraphs = list(document.paragraphs)
 
     for i, paragraph in enumerate(all_paragraphs):
         
-        # Skip the title paragraph (index 0) from the cleaning logic
         if i == 0:
             continue
             
-        # Reset to Normal style for consistency and remove list formatting
         paragraph.style = document.styles['Normal']
             
         text = paragraph.text.strip()
@@ -154,32 +144,30 @@ def process_docx(uploaded_file, file_name_without_ext):
         else:
             speaker_match = SPEAKER_REGEX.match(text)
             if speaker_match:
-                speaker_full = speaker_match.group(0) # e.g., "Ethan: " (with colon and space)
-                speaker_name = speaker_match.group(1).strip() # e.g., "Ethan"
+                speaker_full = speaker_match.group(0) 
+                speaker_name = speaker_match.group(1).strip()
                 
-                highlight_color_object = get_speaker_color(speaker_name)
+                highlight_color_index = get_speaker_color(speaker_name) # Get WD_COLOR_INDEX
                 rest_of_text = text[len(speaker_full):]
                 
-                # Rebuild paragraph with correct formatting
-                paragraph.text = "" # Clear old content
+                # Rebuild paragraph
+                paragraph.text = "" 
                 
                 # Run for the speaker name (Bold and Highlight)
                 run_speaker = paragraph.add_run(speaker_full)
                 run_speaker.font.bold = True
                 
-                # Apply the RGBColor object directly to the highlight attribute (FIXED)
-                run_speaker.font.highlight_color = highlight_color_object
+                # Apply WD_COLOR_INDEX directly (FIXED)
+                run_speaker.font.highlight_color = highlight_color_index 
                 
                 # Run for the rest of the text
                 paragraph.add_run(rest_of_text)
 
     # Delete the content of paragraphs identified as line numbers
     for paragraph in paragraphs_to_remove:
-        # Clear the content instead of removing the paragraph object itself
         paragraph.clear()
 
-
-    # --- C. Apply General Font/Size (Times New Roman 12) ---
+    # --- C. Apply General Font/Size ---
     set_all_text_formatting(document)
     
     # --- D. Add Page Numbering ---
@@ -207,7 +195,6 @@ uploaded_file = st.file_uploader(
 )
 
 if uploaded_file is not None:
-    # Get the file name for the title and the new saved file name
     original_filename = uploaded_file.name
     file_name_without_ext = os.path.splitext(original_filename)[0]
     
@@ -216,7 +203,6 @@ if uploaded_file is not None:
     if st.button("2. RUN AUTOMATIC FORMATTING"):
         with st.spinner('Processing and formatting the Word file...'):
             try:
-                # Call the main processing function
                 modified_file_io = process_docx(uploaded_file, file_name_without_ext)
                 
                 new_filename = f"FORMATTED_{original_filename}"
