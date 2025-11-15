@@ -2,15 +2,13 @@ import streamlit as st
 from docx import Document
 from docx.shared import Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.enum.text import WD_COLOR_INDEX
 from docx.enum.text import WD_LINE_SPACING
 import io
 import os
 import re
 import random
 
-# --- Stable RGB Colors for Font (Text) Color (20 distinct options) ---
-# Using RGB for Font Color is stable, unlike for Highlight.
+# --- Stable RGB Colors for Font (Text) Color (Updated: Removed Black/Very Dark Colors) ---
 FONT_COLORS_RGB = [
     (192, 0, 0),      # Dark Red
     (0, 51, 153),     # Dark Blue
@@ -21,7 +19,6 @@ FONT_COLORS_RGB = [
     (204, 102, 0),    # Brown
     (153, 153, 0),    # Olive
     (255, 0, 127),    # Bright Pink
-    (128, 128, 128),  # Gray
     (51, 51, 255),    # Medium Blue
     (153, 51, 255),   # Lavender
     (0, 204, 0),      # Bright Green
@@ -31,7 +28,8 @@ FONT_COLORS_RGB = [
     (255, 204, 0),    # Gold
     (102, 51, 0),     # Dark Brown
     (0, 128, 0),      # Standard Green
-    (153, 0, 76)      # Wine
+    (153, 0, 76),     # Wine
+    (255, 255, 102)   # Light Yellow (Added bright color)
 ]
 
 # Dictionary to store speaker names and their assigned font color (RGBColor object)
@@ -57,11 +55,11 @@ SPEAKER_REGEX = re.compile(r"^([A-Z][a-z\s&]+):\s*", re.IGNORECASE)
 TIMECODE_REGEX = re.compile(r"^\d{2}:\d{2}:\d{2},\d{3}\s+-->\s+\d{2}:\d{2}:\d{2},\d{3}$")
 
 def set_all_text_formatting(doc):
-    """Applies Times New Roman 12pt and standard line/paragraph spacing to all runs/paragraphs."""
+    """Applies Times New Roman 12pt, Single Spacing, and removes space after paragraph."""
     for paragraph in doc.paragraphs:
-        # Set line spacing to Single and remove space after
+        # FIX: Ensure single line spacing and no space after to achieve 'one line gap'
         paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
-        paragraph.paragraph_format.space_after = Pt(0)
+        paragraph.paragraph_format.space_after = Pt(0) 
         
         for run in paragraph.runs:
             run.font.name = 'Times New Roman'
@@ -71,7 +69,7 @@ def set_all_text_formatting(doc):
 
 
 def process_docx(uploaded_file, file_name_without_ext):
-    """Performs all required document modifications EXCEPT page numbering."""
+    """Performs all required document modifications."""
     
     global speaker_color_map
     global used_colors
@@ -99,8 +97,8 @@ def process_docx(uploaded_file, file_name_without_ext):
     title_run.font.size = Pt(25) # FIX: Set to 25pt
     title_run.bold = True
     
-    # Add two blank lines after the title
-    document.add_paragraph()
+    # FIX: Add two blank lines immediately after the title paragraph
+    document.add_paragraph() 
     document.add_paragraph()
     
     # --- B. Process other paragraphs ---
@@ -108,10 +106,10 @@ def process_docx(uploaded_file, file_name_without_ext):
     paragraphs_to_remove = []
     all_paragraphs = list(document.paragraphs)
 
+    # Note: Start iteration after the title (index 0) and the two new blank paragraphs (index 1, 2)
     for i, paragraph in enumerate(all_paragraphs):
         
-        # Skip the title and the two blank lines we just inserted
-        if i <= 2:
+        if i < 3:
             continue
             
         paragraph.style = document.styles['Normal']
@@ -128,14 +126,14 @@ def process_docx(uploaded_file, file_name_without_ext):
             for run in paragraph.runs:
                 run.font.bold = True
             
-        # --- B.3 Bold Speaker Name and Random Font Color (FIX for ugly highlight) ---
+        # --- B.3 Bold Speaker Name and Random Font Color ---
         else:
             speaker_match = SPEAKER_REGEX.match(text)
             if speaker_match:
                 speaker_full = speaker_match.group(0) 
                 speaker_name = speaker_match.group(1).strip()
                 
-                font_color_object = get_speaker_color(speaker_name) # Get RGBColor object
+                font_color_object = get_speaker_color(speaker_name) 
                 rest_of_text = text[len(speaker_full):]
                 
                 # Rebuild paragraph
@@ -144,7 +142,7 @@ def process_docx(uploaded_file, file_name_without_ext):
                 # Run for the speaker name (Bold and Font Color)
                 run_speaker = paragraph.add_run(speaker_full)
                 run_speaker.font.bold = True
-                run_speaker.font.color.rgb = font_color_object # FIX: Apply as Font Color
+                run_speaker.font.color.rgb = font_color_object # Apply as Font Color
                 
                 # Run for the rest of the text
                 paragraph.add_run(rest_of_text)
