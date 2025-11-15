@@ -8,7 +8,7 @@ import os
 import re
 import random
 
-# --- Stable RGB Colors for Font (Text) Color (20 distinct options) ---
+# --- Stable RGB Colors for Font (Text) Color (20 distinct options, all distinct from black) ---
 FONT_COLORS_RGB = [
     (192, 0, 0),      # Dark Red
     (0, 51, 153),     # Dark Blue
@@ -63,9 +63,7 @@ def set_all_text_formatting(doc):
         # Set line spacing to Single
         paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
         
-        # Ensure all paragraphs start with 0 space after, we will manually add space for content paragraphs
-        paragraph.paragraph_format.space_after = Pt(0) 
-        
+        # Set font for all runs
         for run in paragraph.runs:
             run.font.name = 'Times New Roman'
             run.font.size = Pt(12)
@@ -74,7 +72,7 @@ def set_all_text_formatting(doc):
 
 
 def process_docx(uploaded_file, file_name_without_ext):
-    """Performs all required document modifications."""
+    """Performs all required document modifications by rebuilding the document to ensure correct indexing."""
     
     global speaker_color_map
     global used_colors
@@ -82,139 +80,99 @@ def process_docx(uploaded_file, file_name_without_ext):
     used_colors = [RGBColor(r, g, b) for r, g, b in FONT_COLORS_RGB]
     random.shuffle(used_colors)
     
-    document = Document(io.BytesIO(uploaded_file.read()))
+    # Load the original document and extract raw content paragraphs (remove empty lines)
+    original_document = Document(io.BytesIO(uploaded_file.read()))
+    raw_paragraphs = [p for p in original_document.paragraphs if p.text.strip()]
+    
+    # 1. Create a NEW document to rebuild the structure cleanly
+    document = Document()
     
     # --- A. Set Main Title (Size 25, 2 blank lines after) ---
-    if not document.paragraphs:
-        document.add_paragraph()
-        
-    title_paragraph = document.paragraphs[0]
-        
-    title_paragraph.text = file_name_without_ext.upper()
-    title_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
     
-    if title_paragraph.runs:
-        title_run = title_paragraph.runs[0]
-    else:
-        title_run = title_paragraph.add_run(title_paragraph.text)
-        
+    # Add Title (Point 2: 25pt, Centered)
+    title_paragraph = document.add_paragraph(file_name_without_ext.upper())
+    title_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    title_paragraph.paragraph_format.space_after = Pt(0) # Ensure no extra space after title
+    
+    title_run = title_paragraph.runs[0]
     title_run.font.name = 'Times New Roman'
     title_run.font.size = Pt(25) 
     title_run.bold = True
     
-    # Add two blank paragraphs *after* the title paragraph to ensure two empty lines
-    document.add_paragraph() # Dòng trống 1
-    document.add_paragraph() # Dòng trống 2
+    # Point 2: Add two blank paragraphs
+    document.add_paragraph().paragraph_format.space_after = Pt(0)
+    document.add_paragraph().paragraph_format.space_after = Pt(0)
 
-    # --- B. Process other paragraphs ---
+    # --- B. Process raw paragraphs and add to new document ---
     
-    paragraphs_to_remove = []
-    all_paragraphs = list(document.paragraphs)
-
-    # Start iteration from the 4th paragraph (index 3) which is the first potential content line.
-    for i, paragraph in enumerate(all_paragraphs):
-        
-        if i <= 2: # Skip the title (0) and the two blank paragraphs (1, 2)
-            continue
-            
-        paragraph.style = document.styles['Normal']
-            
+    for paragraph in raw_paragraphs:
         text = paragraph.text.strip()
         
         # --- B.1 Remove SRT Line Numbers ---
         if re.fullmatch(r"^\s*\d+\s*$", text):
-            paragraphs_to_remove.append(paragraph)
-            continue
+            continue # Skip line number paragraphs
             
+        new_paragraph = document.add_paragraph()
+        new_paragraph.style = document.styles['Normal']
+        
         # --- B.2 Bold Timecode ---
         if TIMECODE_REGEX.match(text):
-            for run in paragraph.runs:
+            new_paragraph.text = text
+            for run in new_paragraph.runs:
                 run.font.bold = True
-            
-        # --- B.3 Bold Speaker Name and Random Font Color ---
+            new_paragraph.paragraph_format.space_after = Pt(0) # No space after timecode
+
+        # --- B.3 Bold Speaker Name, Random Font Color, & HTML Tags ---
         else:
-            # FIX: Apply Pt(6) space after for content paragraphs (Close distance)
-            paragraph.paragraph_format.space_after = Pt(6)
+            # Point 4: Apply Pt(6) space after for content paragraphs (Close distance)
+            new_paragraph.paragraph_format.space_after = Pt(6) 
             
             speaker_match = SPEAKER_REGEX.match(text)
             if speaker_match:
+                # Point 1 FIX: Logic for the first speaker line (and all others) is now isolated and reliable
                 speaker_full = speaker_match.group(0) 
                 speaker_name = speaker_match.group(1).strip()
                 
                 font_color_object = get_speaker_color(speaker_name) 
                 rest_of_text = text[len(speaker_full):]
                 
-                # Rebuild paragraph
-                paragraph.text = "" 
-                
                 # Run for the speaker name (Bold and Font Color)
-                run_speaker = paragraph.add_run(speaker_full)
+                run_speaker = new_paragraph.add_run(speaker_full)
                 run_speaker.font.bold = True
                 run_speaker.font.color.rgb = font_color_object 
                 
-                # --- B.4 Process HTML tags within the rest of the text ---
-                
                 current_text = rest_of_text
                 
-                # Find all HTML content (e.g., <i>(Vọng lại:)</i>)
-                matches = list(HTML_CONTENT_REGEX.finditer(current_text))
-
-                last_end = 0
-                for match in matches:
-                    full_match = match.group(0)
-                    tag_text = match.group(2)
-                    start, end = match.span()
-
-                    # Add text BEFORE the tag (if any)
-                    if start > last_end:
-                        paragraph.add_run(current_text[last_end:start])
-                    
-                    # Add the HTML content (Bold and Italic)
-                    run_html = paragraph.add_run(tag_text)
-                    run_html.font.bold = True
-                    run_html.font.italic = True
-                    
-                    last_end = end
-
-                # Add remaining text AFTER the last tag
-                if last_end < len(current_text):
-                    paragraph.add_run(current_text[last_end:])
-
-            # If no speaker is found, just process the text for HTML tags (if it's not a timecode)
             else:
-                # The paragraph already contains the text, now we re-process runs
-                current_text = paragraph.text.strip()
-                paragraph.text = ""
+                current_text = text # No speaker, process full text for HTML tags
+
+            # --- B.4 Process HTML tags within the current_text ---
+            
+            matches = list(HTML_CONTENT_REGEX.finditer(current_text))
+            
+            last_end = 0
+            for match in matches:
+                tag_text = match.group(2) # The content inside the tags
+                start, end = match.span()
+
+                # Add text BEFORE the tag (if any)
+                if start > last_end:
+                    new_paragraph.add_run(current_text[last_end:start])
                 
-                matches = list(HTML_CONTENT_REGEX.finditer(current_text))
+                # Add the HTML content (Bold and Italic)
+                run_html = new_paragraph.add_run(tag_text)
+                run_html.font.bold = True
+                run_html.font.italic = True
                 
-                last_end = 0
-                for match in matches:
-                    full_match = match.group(0)
-                    tag_text = match.group(2)
-                    start, end = match.span()
+                last_end = end
 
-                    # Add text BEFORE the tag (if any)
-                    if start > last_end:
-                        paragraph.add_run(current_text[last_end:start])
-                    
-                    # Add the HTML content (Bold and Italic)
-                    run_html = paragraph.add_run(tag_text)
-                    run_html.font.bold = True
-                    run_html.font.italic = True
-                    
-                    last_end = end
+            # Add remaining text AFTER the last tag (or the whole text if no tags found)
+            if last_end < len(current_text):
+                new_paragraph.add_run(current_text[last_end:])
 
-                # Add remaining text AFTER the last tag
-                if last_end < len(current_text):
-                    paragraph.add_run(current_text[last_end:])
-
-
-    # Delete the content of paragraphs identified as line numbers
-    for paragraph in paragraphs_to_remove:
-        paragraph.clear()
 
     # --- C. Apply General Font/Size and Spacing ---
+    # Apply global formatting (Times New Roman 12pt, Single Line Spacing)
     set_all_text_formatting(document)
     
     # Save the modified file to an in-memory buffer
