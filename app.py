@@ -3,7 +3,6 @@ from docx import Document
 from docx.shared import Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.section import WD_HEADER_FOOTER
-# FIX: Use integer values for WD_COLOR_INDEX
 from docx.enum.text import WD_COLOR_INDEX
 import io
 import os
@@ -12,6 +11,7 @@ import random
 
 # --- FINAL FIX: Use integer values for stable WD_COLOR_INDEX ---
 # These integers map directly to the color constants (e.g., 6 is Yellow)
+# This array is the stable solution for highlighting text across different python-docx versions.
 HIGHLIGHT_COLORS_INDEX = [
     6,  # YELLOW
     11, # BRIGHT_GREEN
@@ -31,8 +31,8 @@ HIGHLIGHT_COLORS_INDEX = [
     8,  # BLUE
     4,  # DARK_RED
     19, # DARK_YELLOW
-    0,  # AUTO (No Color)
-    1,  # WHITE (PALE_BLUE is 1, let's use a non-standard one)
+    0,  # AUTO (No Color - fallback)
+    1,  # WHITE (PALE_BLUE is 1, using it as a low-contrast color)
 ]
 
 # Dictionary to store speaker names and their assigned highlight color (integer index)
@@ -63,17 +63,22 @@ def set_page_number(section):
     footer = section.footer
     
     if not footer.paragraphs:
+        # If footer is empty, add a new paragraph
         footer.add_paragraph()
         
     footer_paragraph = footer.paragraphs[0]
     
-    run_page = footer_paragraph.add_run()
-    run_page.add_field('PAGE')
+    # FIX: add_field must be called on the Paragraph object
+    footer_paragraph.add_field('PAGE') 
     
+    # Set right alignment
     footer_paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     
-    run_page.font.name = 'Times New Roman'
-    run_page.font.size = Pt(12)
+    # Apply general formatting to the page number field
+    if footer_paragraph.runs:
+        run_page = footer_paragraph.runs[-1]
+        run_page.font.name = 'Times New Roman'
+        run_page.font.size = Pt(12)
 
 def set_all_text_formatting(doc):
     """Applies Times New Roman 12pt to all runs in the document."""
@@ -157,7 +162,7 @@ def process_docx(uploaded_file, file_name_without_ext):
                 run_speaker = paragraph.add_run(speaker_full)
                 run_speaker.font.bold = True
                 
-                # Apply WD_COLOR_INDEX integer (FIXED)
+                # Apply WD_COLOR_INDEX integer 
                 run_speaker.font.highlight_color = highlight_color_index 
                 
                 # Run for the rest of the text
