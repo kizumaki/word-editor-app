@@ -3,13 +3,14 @@ from docx import Document
 from docx.shared import Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.section import WD_HEADER_FOOTER
-from docx.enum.text import WD_COLOR_INDEX # IMPORTANT: Import WD_COLOR_INDEX
+# FIX: Import WD_COLOR_INDEX.index for compatibility
+from docx.enum.text import WD_COLOR_INDEX
 import io
 import os
 import re
 import random
 
-# --- FIXED: Use WD_COLOR_INDEX constants for highlight ---
+# --- FIXED: Use WD_COLOR_INDEX.index constants for highlight ---
 HIGHLIGHT_COLORS_INDEX = [
     WD_COLOR_INDEX.YELLOW,
     WD_COLOR_INDEX.BRIGHT_GREEN,
@@ -147,7 +148,7 @@ def process_docx(uploaded_file, file_name_without_ext):
                 speaker_full = speaker_match.group(0) 
                 speaker_name = speaker_match.group(1).strip()
                 
-                highlight_color_index = get_speaker_color(speaker_name) # Get WD_COLOR_INDEX
+                highlight_color_index = get_speaker_color(speaker_name) 
                 rest_of_text = text[len(speaker_full):]
                 
                 # Rebuild paragraph
@@ -157,7 +158,7 @@ def process_docx(uploaded_file, file_name_without_ext):
                 run_speaker = paragraph.add_run(speaker_full)
                 run_speaker.font.bold = True
                 
-                # Apply WD_COLOR_INDEX directly (FIXED)
+                # Apply WD_COLOR_INDEX directly 
                 run_speaker.font.highlight_color = highlight_color_index 
                 
                 # Run for the rest of the text
