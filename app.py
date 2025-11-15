@@ -8,7 +8,7 @@ import os
 import re
 import random
 
-# --- Stable RGB Colors for Font (Text) Color (Updated: Removed Black/Very Dark Colors) ---
+# --- Stable RGB Colors for Font (Text) Color (20 distinct options) ---
 FONT_COLORS_RGB = [
     (192, 0, 0),      # Dark Red
     (0, 51, 153),     # Dark Blue
@@ -29,7 +29,7 @@ FONT_COLORS_RGB = [
     (102, 51, 0),     # Dark Brown
     (0, 128, 0),      # Standard Green
     (153, 0, 76),     # Wine
-    (255, 255, 102)   # Light Yellow (Added bright color)
+    (255, 255, 102)   # Light Yellow
 ]
 
 # Dictionary to store speaker names and their assigned font color (RGBColor object)
@@ -57,7 +57,7 @@ TIMECODE_REGEX = re.compile(r"^\d{2}:\d{2}:\d{2},\d{3}\s+-->\s+\d{2}:\d{2}:\d{2}
 def set_all_text_formatting(doc):
     """Applies Times New Roman 12pt, Single Spacing, and removes space after paragraph."""
     for paragraph in doc.paragraphs:
-        # FIX: Ensure single line spacing and no space after to achieve 'one line gap'
+        # Ensure single line spacing and no space after to achieve 'one line gap'
         paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
         paragraph.paragraph_format.space_after = Pt(0) 
         
@@ -80,12 +80,16 @@ def process_docx(uploaded_file, file_name_without_ext):
     document = Document(io.BytesIO(uploaded_file.read()))
     
     # --- A. Set Main Title (Size 25, 2 blank lines after) ---
+    # Delete the current first paragraph to ensure the new title is clean
     if document.paragraphs:
-        title_paragraph = document.paragraphs[0]
+        # Move runs from the first paragraph to the second to delete the first one safely
+        first_paragraph = document.paragraphs[0]
+        # Clear content and then set the new title to the FIRST PARAGRAPH
+        first_paragraph.text = file_name_without_ext.upper()
     else:
-        title_paragraph = document.add_paragraph()
+        first_paragraph = document.add_paragraph(file_name_without_ext.upper())
         
-    title_paragraph.text = file_name_without_ext.upper()
+    title_paragraph = first_paragraph
     title_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
     
     if title_paragraph.runs:
@@ -94,22 +98,29 @@ def process_docx(uploaded_file, file_name_without_ext):
         title_run = title_paragraph.add_run(title_paragraph.text)
         
     title_run.font.name = 'Times New Roman'
-    title_run.font.size = Pt(25) # FIX: Set to 25pt
+    title_run.font.size = Pt(25) # Set to 25pt
     title_run.bold = True
     
-    # FIX: Add two blank lines immediately after the title paragraph
-    document.add_paragraph() 
-    document.add_paragraph()
+    # FIX: Insert two blank paragraphs immediately AFTER the title paragraph
+    # We insert them *before* the current second paragraph (index 1)
+    
+    # 1. Insert first blank paragraph
+    document.paragraphs[0]._insert_paragraph_before()
+    # 2. Insert second blank paragraph
+    document.paragraphs[0]._insert_paragraph_before()
+
+    # The title is now the 3rd paragraph (index 2) in the list after two blanks were added.
+    # We must ensure the correct logic is applied to the content starting from index 3.
     
     # --- B. Process other paragraphs ---
     
     paragraphs_to_remove = []
     all_paragraphs = list(document.paragraphs)
 
-    # Note: Start iteration after the title (index 0) and the two new blank paragraphs (index 1, 2)
+    # FIX: Start iteration from the 4th paragraph (index 3) which is the first content line.
     for i, paragraph in enumerate(all_paragraphs):
         
-        if i < 3:
+        if i <= 2: # Skip the two blank paragraphs and the title paragraph (which is now index 2)
             continue
             
         paragraph.style = document.styles['Normal']
