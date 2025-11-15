@@ -2,45 +2,53 @@ import streamlit as st
 from docx import Document
 from docx.shared import Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.enum.text import WD_COLOR_INDEX # Keep only the necessary imports
+from docx.enum.text import WD_COLOR_INDEX
+from docx.enum.text import WD_LINE_SPACING
 import io
 import os
 import re
 import random
 
-# --- Stable WD_COLOR_INDEX integers (1-16) for highlighting ---
-HIGHLIGHT_COLORS_INDEX = [
-    6,  # YELLOW
-    11, # BRIGHT_GREEN
-    3,  # TURQUOISE
-    13, # VIOLET
-    14, # PINK
-    9,  # RED
-    10, # DARK_BLUE
-    15, # TEAL
-    16, # GRAY_25 
-    7,  # GOLD
-    5,  # LIGHT_ORANGE
-    1,  # PALE_BLUE
-    8,  # BLUE
-    4,  # DARK_RED
-    0,  # AUTO (No Color - fallback)
+# --- Stable RGB Colors for Font (Text) Color (20 distinct options) ---
+# Using RGB for Font Color is stable, unlike for Highlight.
+FONT_COLORS_RGB = [
+    (192, 0, 0),      # Dark Red
+    (0, 51, 153),     # Dark Blue
+    (0, 102, 0),      # Dark Green
+    (102, 0, 102),    # Purple
+    (255, 128, 0),    # Orange
+    (0, 153, 153),    # Teal
+    (204, 102, 0),    # Brown
+    (153, 153, 0),    # Olive
+    (255, 0, 127),    # Bright Pink
+    (128, 128, 128),  # Gray
+    (51, 51, 255),    # Medium Blue
+    (153, 51, 255),   # Lavender
+    (0, 204, 0),      # Bright Green
+    (255, 165, 0),    # Orange-Gold
+    (255, 51, 51),    # Light Red
+    (0, 204, 204),    # Cyan
+    (255, 204, 0),    # Gold
+    (102, 51, 0),     # Dark Brown
+    (0, 128, 0),      # Standard Green
+    (153, 0, 76)      # Wine
 ]
 
-# Dictionary to store speaker names and their assigned highlight color (integer index)
+# Dictionary to store speaker names and their assigned font color (RGBColor object)
 speaker_color_map = {}
-used_colors = list(HIGHLIGHT_COLORS_INDEX)
+used_colors = [RGBColor(r, g, b) for r, g, b in FONT_COLORS_RGB]
 random.shuffle(used_colors)
 
 def get_speaker_color(speaker_name):
-    """Assigns a persistent random WD_COLOR_INDEX integer to a speaker."""
+    """Assigns a persistent random RGBColor object (for font color) to a speaker."""
     if speaker_name not in speaker_color_map:
         if used_colors:
-            color_index = used_colors.pop()
+            color_object = used_colors.pop()
         else:
-            color_index = random.choice(HIGHLIGHT_COLORS_INDEX)
+            r, g, b = random.choice(FONT_COLORS_RGB)
+            color_object = RGBColor(r, g, b)
             
-        speaker_color_map[speaker_name] = color_index
+        speaker_color_map[speaker_name] = color_object
         
     return speaker_color_map[speaker_name]
 
@@ -48,11 +56,13 @@ def get_speaker_color(speaker_name):
 SPEAKER_REGEX = re.compile(r"^([A-Z][a-z\s&]+):\s*", re.IGNORECASE)
 TIMECODE_REGEX = re.compile(r"^\d{2}:\d{2}:\d{2},\d{3}\s+-->\s+\d{2}:\d{2}:\d{2},\d{3}$")
 
-# NOTE: set_page_number() function is REMOVED
-
 def set_all_text_formatting(doc):
-    """Applies Times New Roman 12pt to all runs in the document."""
+    """Applies Times New Roman 12pt and standard line/paragraph spacing to all runs/paragraphs."""
     for paragraph in doc.paragraphs:
+        # Set line spacing to Single and remove space after
+        paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
+        paragraph.paragraph_format.space_after = Pt(0)
+        
         for run in paragraph.runs:
             run.font.name = 'Times New Roman'
             run.font.size = Pt(12)
@@ -66,12 +76,12 @@ def process_docx(uploaded_file, file_name_without_ext):
     global speaker_color_map
     global used_colors
     speaker_color_map = {}
-    used_colors = list(HIGHLIGHT_COLORS_INDEX)
+    used_colors = [RGBColor(r, g, b) for r, g, b in FONT_COLORS_RGB]
     random.shuffle(used_colors)
     
     document = Document(io.BytesIO(uploaded_file.read()))
     
-    # --- A. Set Main Title ---
+    # --- A. Set Main Title (Size 25, 2 blank lines after) ---
     if document.paragraphs:
         title_paragraph = document.paragraphs[0]
     else:
@@ -86,18 +96,22 @@ def process_docx(uploaded_file, file_name_without_ext):
         title_run = title_paragraph.add_run(title_paragraph.text)
         
     title_run.font.name = 'Times New Roman'
-    title_run.font.size = Pt(16)
+    title_run.font.size = Pt(25) # FIX: Set to 25pt
     title_run.bold = True
+    
+    # Add two blank lines after the title
+    document.add_paragraph()
+    document.add_paragraph()
     
     # --- B. Process other paragraphs ---
     
     paragraphs_to_remove = []
-    
     all_paragraphs = list(document.paragraphs)
 
     for i, paragraph in enumerate(all_paragraphs):
         
-        if i == 0:
+        # Skip the title and the two blank lines we just inserted
+        if i <= 2:
             continue
             
         paragraph.style = document.styles['Normal']
@@ -114,25 +128,23 @@ def process_docx(uploaded_file, file_name_without_ext):
             for run in paragraph.runs:
                 run.font.bold = True
             
-        # --- B.3 Bold Speaker Name and Random Highlight ---
+        # --- B.3 Bold Speaker Name and Random Font Color (FIX for ugly highlight) ---
         else:
             speaker_match = SPEAKER_REGEX.match(text)
             if speaker_match:
                 speaker_full = speaker_match.group(0) 
                 speaker_name = speaker_match.group(1).strip()
                 
-                highlight_color_index = get_speaker_color(speaker_name) 
+                font_color_object = get_speaker_color(speaker_name) # Get RGBColor object
                 rest_of_text = text[len(speaker_full):]
                 
                 # Rebuild paragraph
                 paragraph.text = "" 
                 
-                # Run for the speaker name (Bold and Highlight)
+                # Run for the speaker name (Bold and Font Color)
                 run_speaker = paragraph.add_run(speaker_full)
                 run_speaker.font.bold = True
-                
-                # Apply WD_COLOR_INDEX integer 
-                run_speaker.font.highlight_color = highlight_color_index 
+                run_speaker.font.color.rgb = font_color_object # FIX: Apply as Font Color
                 
                 # Run for the rest of the text
                 paragraph.add_run(rest_of_text)
@@ -141,11 +153,9 @@ def process_docx(uploaded_file, file_name_without_ext):
     for paragraph in paragraphs_to_remove:
         paragraph.clear()
 
-    # --- C. Apply General Font/Size ---
+    # --- C. Apply General Font/Size and Spacing ---
     set_all_text_formatting(document)
     
-    # NOTE: D. Add Page Numbering is REMOVED
-
     # Save the modified file to an in-memory buffer
     modified_file = io.BytesIO()
     document.save(modified_file)
