@@ -2,14 +2,13 @@ import streamlit as st
 from docx import Document
 from docx.shared import Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.enum.section import WD_HEADER_FOOTER
-from docx.enum.text import WD_COLOR_INDEX
+from docx.enum.text import WD_COLOR_INDEX # Keep only the necessary imports
 import io
 import os
 import re
 import random
 
-# --- FINAL FIX: Use a smaller, safer range of WD_COLOR_INDEX integers (1-16) ---
+# --- Stable WD_COLOR_INDEX integers (1-16) for highlighting ---
 HIGHLIGHT_COLORS_INDEX = [
     6,  # YELLOW
     11, # BRIGHT_GREEN
@@ -25,6 +24,7 @@ HIGHLIGHT_COLORS_INDEX = [
     1,  # PALE_BLUE
     8,  # BLUE
     4,  # DARK_RED
+    0,  # AUTO (No Color - fallback)
 ]
 
 # Dictionary to store speaker names and their assigned highlight color (integer index)
@@ -48,26 +48,7 @@ def get_speaker_color(speaker_name):
 SPEAKER_REGEX = re.compile(r"^([A-Z][a-z\s&]+):\s*", re.IGNORECASE)
 TIMECODE_REGEX = re.compile(r"^\d{2}:\d{2}:\d{2},\d{3}\s+-->\s+\d{2}:\d{2}:\d{2},\d{3}$")
 
-
-def set_page_number(section):
-    """Adds a page number to the right corner of the footer using standard method."""
-    footer = section.footer
-    
-    if not footer.paragraphs:
-        footer.add_paragraph()
-        
-    footer_paragraph = footer.paragraphs[0]
-    
-    # Use Paragraph.add_field() (This should work in modern python-docx)
-    run_page = footer_paragraph.add_run()
-    run_page.add_field('PAGE')
-    
-    # Set right alignment
-    footer_paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    
-    # Apply general formatting to the page number field
-    run_page.font.name = 'Times New Roman'
-    run_page.font.size = Pt(12)
+# NOTE: set_page_number() function is REMOVED
 
 def set_all_text_formatting(doc):
     """Applies Times New Roman 12pt to all runs in the document."""
@@ -80,7 +61,7 @@ def set_all_text_formatting(doc):
 
 
 def process_docx(uploaded_file, file_name_without_ext):
-    """Performs all required document modifications."""
+    """Performs all required document modifications EXCEPT page numbering."""
     
     global speaker_color_map
     global used_colors
@@ -163,9 +144,7 @@ def process_docx(uploaded_file, file_name_without_ext):
     # --- C. Apply General Font/Size ---
     set_all_text_formatting(document)
     
-    # --- D. Add Page Numbering ---
-    for section in document.sections:
-        set_page_number(section)
+    # NOTE: D. Add Page Numbering is REMOVED
 
     # Save the modified file to an in-memory buffer
     modified_file = io.BytesIO()
