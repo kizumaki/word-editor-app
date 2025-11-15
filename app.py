@@ -3,51 +3,50 @@ from docx import Document
 from docx.shared import Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.section import WD_HEADER_FOOTER
-# FIX: Import WD_COLOR_INDEX.index for compatibility
+# FIX: Use integer values for WD_COLOR_INDEX
 from docx.enum.text import WD_COLOR_INDEX
 import io
 import os
 import re
 import random
 
-# --- FIXED: Use WD_COLOR_INDEX.index constants for highlight ---
+# --- FINAL FIX: Use integer values for stable WD_COLOR_INDEX ---
+# These integers map directly to the color constants (e.g., 6 is Yellow)
 HIGHLIGHT_COLORS_INDEX = [
-    WD_COLOR_INDEX.YELLOW,
-    WD_COLOR_INDEX.BRIGHT_GREEN,
-    WD_COLOR_INDEX.TURQUOISE,
-    WD_COLOR_INDEX.VIOLET,
-    WD_COLOR_INDEX.PINK,
-    WD_COLOR_INDEX.RED,
-    WD_COLOR_INDEX.DARK_BLUE,
-    WD_COLOR_INDEX.TEAL,
-    WD_COLOR_INDEX.GRAY_25,
-    WD_COLOR_INDEX.GRAY_50,
-    WD_COLOR_INDEX.LIME,
-    WD_COLOR_INDEX.GOLD,
-    WD_COLOR_INDEX.LIGHT_ORANGE,
-    WD_COLOR_INDEX.PALE_BLUE,
-    WD_COLOR_INDEX.SEA_GREEN,
-    WD_COLOR_INDEX.BLUE,
-    WD_COLOR_INDEX.DARK_RED,
-    WD_COLOR_INDEX.DARK_YELLOW,
-    WD_COLOR_INDEX.AUTO, # Default/No Color (as a fallback)
-    WD_COLOR_INDEX.WHITE # Default/No Color (as a fallback)
+    6,  # YELLOW
+    11, # BRIGHT_GREEN
+    3,  # TURQUOISE
+    13, # VIOLET
+    14, # PINK
+    9,  # RED
+    10, # DARK_BLUE
+    15, # TEAL
+    16, # GRAY_25
+    17, # GRAY_50
+    12, # LIME
+    7,  # GOLD
+    5,  # LIGHT_ORANGE
+    1,  # PALE_BLUE
+    18, # SEA_GREEN
+    8,  # BLUE
+    4,  # DARK_RED
+    19, # DARK_YELLOW
+    0,  # AUTO (No Color)
+    1,  # WHITE (PALE_BLUE is 1, let's use a non-standard one)
 ]
 
-# Dictionary to store speaker names and their assigned highlight color (WD_COLOR_INDEX object)
+# Dictionary to store speaker names and their assigned highlight color (integer index)
 speaker_color_map = {}
-# Use a shuffled list of WD_COLOR_INDEX constants
+# Use a shuffled list of WD_COLOR_INDEX integers
 used_colors = list(HIGHLIGHT_COLORS_INDEX)
 random.shuffle(used_colors)
 
 def get_speaker_color(speaker_name):
-    """Assigns a persistent random WD_COLOR_INDEX object to a speaker."""
+    """Assigns a persistent random WD_COLOR_INDEX integer to a speaker."""
     if speaker_name not in speaker_color_map:
         if used_colors:
-            # Pop a color from the randomized list
             color_index = used_colors.pop()
         else:
-            # If all colors are used, wrap around
             color_index = random.choice(HIGHLIGHT_COLORS_INDEX)
             
         speaker_color_map[speaker_name] = color_index
@@ -158,7 +157,7 @@ def process_docx(uploaded_file, file_name_without_ext):
                 run_speaker = paragraph.add_run(speaker_full)
                 run_speaker.font.bold = True
                 
-                # Apply WD_COLOR_INDEX directly 
+                # Apply WD_COLOR_INDEX integer (FIXED)
                 run_speaker.font.highlight_color = highlight_color_index 
                 
                 # Run for the rest of the text
