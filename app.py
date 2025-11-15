@@ -9,9 +9,8 @@ import os
 import re
 import random
 
-# --- FINAL FIX: Use integer values for stable WD_COLOR_INDEX ---
-# These integers map directly to the color constants (e.g., 6 is Yellow)
-# This array is the stable solution for highlighting text across different python-docx versions.
+# --- FINAL FIX: Use a smaller, safer range of WD_COLOR_INDEX integers (1-16) ---
+# Values 17, 18, 19 often cause compatibility issues on environments like Streamlit.
 HIGHLIGHT_COLORS_INDEX = [
     6,  # YELLOW
     11, # BRIGHT_GREEN
@@ -21,18 +20,13 @@ HIGHLIGHT_COLORS_INDEX = [
     9,  # RED
     10, # DARK_BLUE
     15, # TEAL
-    16, # GRAY_25
-    17, # GRAY_50
-    12, # LIME
+    16, # GRAY_25 
     7,  # GOLD
     5,  # LIGHT_ORANGE
     1,  # PALE_BLUE
-    18, # SEA_GREEN
     8,  # BLUE
     4,  # DARK_RED
-    19, # DARK_YELLOW
     0,  # AUTO (No Color - fallback)
-    1,  # WHITE (PALE_BLUE is 1, using it as a low-contrast color)
 ]
 
 # Dictionary to store speaker names and their assigned highlight color (integer index)
@@ -63,7 +57,6 @@ def set_page_number(section):
     footer = section.footer
     
     if not footer.paragraphs:
-        # If footer is empty, add a new paragraph
         footer.add_paragraph()
         
     footer_paragraph = footer.paragraphs[0]
