@@ -4,15 +4,12 @@ from docx.shared import Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.section import WD_HEADER_FOOTER
 from docx.enum.text import WD_COLOR_INDEX
-from docx.oxml.simpletypes import ST_FldCharType # Required for stable page number
-from docx.oxml import OxmlElement # Required for stable page number
 import io
 import os
 import re
 import random
 
 # --- FINAL FIX: Use a smaller, safer range of WD_COLOR_INDEX integers (1-16) ---
-# This list is the most stable solution for highlighting text across different python-docx versions.
 HIGHLIGHT_COLORS_INDEX = [
     6,  # YELLOW
     11, # BRIGHT_GREEN
@@ -28,7 +25,6 @@ HIGHLIGHT_COLORS_INDEX = [
     1,  # PALE_BLUE
     8,  # BLUE
     4,  # DARK_RED
-    0,  # AUTO (No Color - fallback)
 ]
 
 # Dictionary to store speaker names and their assigned highlight color (integer index)
@@ -53,31 +49,8 @@ SPEAKER_REGEX = re.compile(r"^([A-Z][a-z\s&]+):\s*", re.IGNORECASE)
 TIMECODE_REGEX = re.compile(r"^\d{2}:\d{2}:\d{2},\d{3}\s+-->\s+\d{2}:\d{2}:\d{2},\d{3}$")
 
 
-def _insert_page_number_field(paragraph):
-    """
-    FIXED FUNCTION: Directly inserts the PAGE field XML into the paragraph.
-    This bypasses the unstable add_field() method in some python-docx versions.
-    """
-    p = paragraph._p
-    
-    # 1. Insert w:fldChar type="begin"
-    fldChar = OxmlElement('w:fldChar')
-    fldChar.set(qn('w:fldCharType'), 'begin')
-    p.append(fldChar)
-    
-    # 2. Insert w:instrText (the actual field code)
-    instrText = OxmlElement('w:instrText')
-    instrText.set(qn('xml:space'), 'preserve')
-    instrText.text = 'PAGE \\* MERGEFORMAT' # Field code for PAGE
-    p.append(instrText)
-    
-    # 3. Insert w:fldChar type="end"
-    fldChar = OxmlElement('w:fldChar')
-    fldChar.set(qn('w:fldCharType'), 'end')
-    p.append(fldChar)
-    
 def set_page_number(section):
-    """Adds a page number to the right corner of the footer using stable method."""
+    """Adds a page number to the right corner of the footer using standard method."""
     footer = section.footer
     
     if not footer.paragraphs:
@@ -85,17 +58,16 @@ def set_page_number(section):
         
     footer_paragraph = footer.paragraphs[0]
     
-    # FIX: Use the XML insertion method
-    _insert_page_number_field(footer_paragraph)
+    # Use Paragraph.add_field() (This should work in modern python-docx)
+    run_page = footer_paragraph.add_run()
+    run_page.add_field('PAGE')
     
     # Set right alignment
     footer_paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     
     # Apply general formatting to the page number field
-    if footer_paragraph.runs:
-        run_page = footer_paragraph.runs[-1]
-        run_page.font.name = 'Times New Roman'
-        run_page.font.size = Pt(12)
+    run_page.font.name = 'Times New Roman'
+    run_page.font.size = Pt(12)
 
 def set_all_text_formatting(doc):
     """Applies Times New Roman 12pt to all runs in the document."""
