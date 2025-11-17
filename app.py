@@ -8,19 +8,57 @@ import io
 import os
 import re
 import random
+import base64
 
 # --- Helper Functions and Constants ---
 
-# Colors remain the same
-FONT_COLORS_RGB = [
-    (192, 0, 0), (0, 51, 153), (0, 102, 0), (102, 0, 102), (255, 128, 0), 
-    (0, 153, 153), (204, 102, 0), (153, 153, 0), (255, 0, 127), (51, 51, 255), 
-    (153, 51, 255), (0, 204, 0), (255, 165, 0), (255, 51, 51), (0, 204, 204), 
-    (255, 204, 0), (102, 51, 0), (0, 128, 0), (153, 0, 76), (255, 255, 102)
-]
+# --- FIX: Tạo 150 màu RGB riêng biệt và nổi bật (Hàm tạo màu ngẫu nhiên) ---
+def generate_vibrant_rgb_colors(count=150):
+    """Generates a list of highly saturated, distinct RGB colors."""
+    colors = set()
+    while len(colors) < count:
+        # Chọn ngẫu nhiên giá trị Hue (0-360) và chuyển sang RGB
+        h = random.random()
+        s = 0.8 # Saturation cao (để màu nổi bật)
+        v = 0.9 # Value/Brightness cao (để tránh màu quá tối)
+        
+        # Chuyển đổi HSV sang RGB
+        if s == 0.0:
+            r = g = b = v
+        else:
+            i = int(h * 6.0)
+            f = h * 6.0 - i
+            p = v * (1.0 - s)
+            q = v * (1.0 - s * f)
+            t = v * (1.0 - s * (1.0 - f))
+
+            if i % 6 == 0:
+                r, g, b = v, t, p
+            elif i % 6 == 1:
+                r, g, b = q, v, p
+            elif i % 6 == 2:
+                r, g, b = p, v, t
+            elif i % 6 == 3:
+                r, g, b = p, q, v
+            elif i % 6 == 4:
+                r, g, b = t, p, v
+            else:
+                r, g, b = v, p, q
+        
+        r, g, b = int(r * 255), int(g * 255), int(b * 255)
+        # Loại bỏ các màu quá gần màu đen/trắng (giữ độ tương phản)
+        if (r < 50 and g < 50 and b < 50) or (r > 200 and g > 200 and b > 200):
+            continue 
+            
+        colors.add((r, g, b))
+    
+    return list(colors)
+
+# Khởi tạo danh sách 150 màu
+FONT_COLORS_RGB_150 = generate_vibrant_rgb_colors(150)
 
 speaker_color_map = {}
-used_colors = [RGBColor(r, g, b) for r, g, b in FONT_COLORS_RGB]
+used_colors = [RGBColor(r, g, b) for r, g, b in FONT_COLORS_RGB_150]
 random.shuffle(used_colors)
 
 def get_speaker_color(speaker_name):
@@ -29,7 +67,7 @@ def get_speaker_color(speaker_name):
         if used_colors:
             color_object = used_colors.pop()
         else:
-            r, g, b = random.choice(FONT_COLORS_RGB)
+            r, g, b = random.choice(FONT_COLORS_RGB_150)
             color_object = RGBColor(r, g, b)
             
         speaker_color_map[speaker_name] = color_object
@@ -42,14 +80,14 @@ TIMECODE_REGEX = re.compile(r"^\d{2}:\d{2}:\d{2},\d{3}\s+-->\s+\d{2}:\d{2}:\d{2}
 HTML_CONTENT_REGEX = re.compile(r"((?:</?[ibu]>)+)(.*?)(?:</?[ibu]>)+", re.IGNORECASE | re.DOTALL)
 
 def set_all_text_formatting(doc):
-    """Applies Times New Roman 12pt and specific Spacing (0pt Before, Single Line) to all runs/paragraphs."""
+    """Applies Times New Roman 12pt and specific Spacing (Before: 0pt, After: 6pt, Single Line) to all runs/paragraphs."""
     for paragraph in doc.paragraphs:
         # Áp dụng Font và Size
         for run in paragraph.runs:
             run.font.name = 'Times New Roman'
             run.font.size = Pt(12)
         
-        # Thiết lập dãn dòng chung: Single
+        # Thiết lập dãn đoạn chung: Single
         paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
         # Thiết lập Space Before chung: 0 pt
         paragraph.paragraph_format.space_before = Pt(0)
@@ -63,7 +101,7 @@ def process_docx(uploaded_file, file_name_without_ext):
     global speaker_color_map
     global used_colors
     speaker_color_map = {}
-    used_colors = [RGBColor(r, g, b) for r, g, b in FONT_COLORS_RGB]
+    used_colors = [RGBColor(r, g, b) for r, g, b in FONT_COLORS_RGB_150]
     random.shuffle(used_colors)
     
     original_document = Document(io.BytesIO(uploaded_file.getvalue()))
@@ -75,7 +113,7 @@ def process_docx(uploaded_file, file_name_without_ext):
     title_paragraph = document.add_paragraph(file_name_without_ext.upper())
     title_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
     title_paragraph.paragraph_format.space_before = Pt(0)
-    title_paragraph.paragraph_format.space_after = Pt(0) # Đảm bảo không có dãn đoạn sau tiêu đề
+    title_paragraph.paragraph_format.space_after = Pt(0) 
     
     title_run = title_paragraph.runs[0]
     title_run.font.name = 'Times New Roman'
@@ -98,14 +136,14 @@ def process_docx(uploaded_file, file_name_without_ext):
         new_paragraph = document.add_paragraph()
         new_paragraph.style = document.styles['Normal']
         new_paragraph.paragraph_format.space_before = Pt(0) # Giữ 0pt Before
-        new_paragraph.paragraph_format.space_after = Pt(6) # FIX: Thiết lập 6pt After mặc định
+        new_paragraph.paragraph_format.space_after = Pt(6) # Thiết lập 6pt After mặc định
         
         # B.2 Bold Timecode (Ghi đè Space After = 0)
         if TIMECODE_REGEX.match(text):
             new_paragraph.text = text
             for run in new_paragraph.runs:
                 run.font.bold = True
-            new_paragraph.paragraph_format.space_after = Pt(0) # FIX: Timecode không cần dãn đoạn 6pt
+            new_paragraph.paragraph_format.space_after = Pt(0) # Timecode không cần dãn đoạn 6pt
 
         # B.3 Nội dung (Speaker/Content)
         else:
@@ -188,16 +226,15 @@ def process_docx(uploaded_file, file_name_without_ext):
     
     return modified_file
 
-# --- Streamlit Preview Helper (Đã bỏ hoàn toàn) ---
-# ... (Phần giao diện không thay đổi) ...
-
+# --- Streamlit Preview Helper (Chỉ còn nút Download nhanh) ---
 def get_base64_html_preview(docx_io):
     # Loại bỏ tính năng Preview
     base64_docx = base64.b64encode(docx_io.read()).decode('utf-8')
     docx_io.seek(0)
+    
     html = f"""
     <div style="border: 1px solid #ccc; padding: 10px; text-align: center;">
-        <p>⚠️ TÍNH NĂNG PREVIEW ĐÃ BỊ LOẠI BỎ THEO YÊU CẦU.</p>
+        <p>⚠️ TÍNH NĂNG PREVIEW ĐÃ ĐƯỢC THAY BẰNG NÚT TẢI XUỐNG NHANH.</p>
         <p>Vui lòng tải xuống file Word để xem thành phẩm cuối cùng.</p>
         <a href="data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,{base64_docx}" download="preview.docx" style="text-decoration: none;">
             <button style="padding: 10px 20px; background-color: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">
@@ -244,9 +281,9 @@ if uploaded_file is not None:
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 )
                 
-                # Thêm Preview (Hiển thị nút download nhanh)
+                # Thêm Preview
                 st.subheader("Xem trước thành phẩm")
-                modified_file_io.seek(0) 
+                modified_file_io.seek(0) # Đặt lại con trỏ file trước khi dùng cho preview
                 st.markdown(get_base64_html_preview(modified_file_io), unsafe_allow_html=True)
                 
                 st.markdown("---")
