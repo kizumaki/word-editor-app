@@ -3,12 +3,12 @@ from docx import Document
 from docx.shared import Pt, RGBColor, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.text import WD_LINE_SPACING
-from docx.enum.text import WD_TAB_ALIGNMENT, WD_TAB_LEADER # FIX: Thêm import WD_TAB_ALIGNMENT
+from docx.enum.text import WD_TAB_ALIGNMENT
 import io
 import os
 import re
 import random
-import base64
+# Bỏ import base64
 
 # --- Helper Functions and Constants ---
 
@@ -112,8 +112,15 @@ def process_docx(uploaded_file, file_name_without_ext):
             speaker_match = SPEAKER_REGEX.match(text)
             
             if speaker_match:
-                # FIX: Xử lý căn lề/Tab theo Ảnh 2: Thụt lề đầu dòng và Dùng Tab
-                # Đặt tab stop ở vị trí mong muốn (ví dụ: 1 inch)
+                # FIX CĂN LỀ: Dùng Tab Stop và Thụt lề treo 
+                
+                # 1. Thiết lập Thụt lề treo (Hanging Indent) 
+                # Lề trái: 1 inch (tổng khối văn bản bắt đầu từ đây)
+                new_paragraph.paragraph_format.left_indent = Inches(1.0)
+                # Thụt lề dòng đầu: -1 inch (đưa tên người nói về vị trí 0)
+                new_paragraph.paragraph_format.first_line_indent = Inches(-1.0)
+                
+                # 2. Đặt Tab Stop ở vị trí 1.0 inch để căn chỉnh nội dung đối thoại
                 new_paragraph.paragraph_format.tab_stops.add_tab_stop(Inches(1.0), WD_TAB_ALIGNMENT.LEFT)
                 
                 speaker_full = speaker_match.group(0) 
@@ -127,44 +134,58 @@ def process_docx(uploaded_file, file_name_without_ext):
                 run_speaker.font.bold = True
                 run_speaker.font.color.rgb = font_color_object 
                 
-                # 2. Insert Tab character to align the dialogue text
+                # 2. Insert Tab character to align the dialogue text (Bắt đầu khối căn đều)
                 new_paragraph.add_run('\t') 
                 
                 current_text = rest_of_text
                 
             else:
+                # Nếu không có người nói, đảm bảo không có thụt lề
+                new_paragraph.paragraph_format.left_indent = None
+                new_paragraph.paragraph_format.first_line_indent = None
                 current_text = text
 
-            # --- B.4 Process HTML tags within the current_text ---
+
+            # --- B.4 Process HTML tags within the current_text (cho cả 2 trường hợp) ---
             
+            matches = list(HTML_CONTENT_REGEX.finditer(current_text))
+            last_end = 0
+            
+            # Xóa text cũ nếu có speaker để chỉ giữ lại nội dung đã định dạng
             if speaker_match:
-                # Nếu có người nói, tiếp tục thêm nội dung sau tab
-                matches = list(HTML_CONTENT_REGEX.finditer(current_text))
-                last_end = 0
-                
-                for match in matches:
-                    tag_text = match.group(2) 
-                    start, end = match.span()
-
-                    # Add text BEFORE the tag (if any)
-                    if start > last_end:
-                        new_paragraph.add_run(current_text[last_end:start])
-                    
-                    # Add the HTML content (Bold and Italic)
-                    run_html = new_paragraph.add_run(tag_text)
-                    run_html.font.bold = True
-                    run_html.font.italic = True
-                    
-                    last_end = end
-
-                # Add remaining text AFTER the last tag
-                if last_end < len(current_text):
-                    new_paragraph.add_run(current_text[last_end:])
-            
+                # Đảm bảo nội dung sau tab được thêm vào.
+                pass 
             else:
-                # Nếu không có người nói (chỉ là nội dung tiếp theo), thêm nội dung
-                new_paragraph.text = current_text 
+                new_paragraph.text = "" # Xóa nội dung gốc để định dạng lại
 
+            # Logic thêm text đã được định dạng
+            for match in matches:
+                tag_text = match.group(2) 
+                start, end = match.span()
+
+                # Add text BEFORE the tag (if any)
+                if start > last_end:
+                    new_paragraph.add_run(current_text[last_end:start])
+                
+                # Add the HTML content (Bold and Italic)
+                run_html = new_paragraph.add_run(tag_text)
+                run_html.font.bold = True
+                run_html.font.italic = True
+                
+                last_end = end
+
+            # Add remaining text AFTER the last tag (or the whole text if no tags found)
+            if last_end < len(current_text):
+                new_paragraph.add_run(current_text[last_end:])
+            
+            # Xử lý trường hợp không có tag và không có speaker (nội dung đơn thuần)
+            elif not speaker_match and not matches:
+                # Nếu không có tag và không có speaker, gán lại nội dung
+                new_paragraph.add_run(current_text)
+            
+            # Xử lý trường hợp có speaker nhưng không có tag (nội dung đơn thuần sau tab)
+            elif speaker_match and not matches:
+                new_paragraph.add_run(current_text)
 
     # C. Apply General Font/Size and Spacing (Global settings)
     set_all_text_formatting(document)
@@ -176,27 +197,9 @@ def process_docx(uploaded_file, file_name_without_ext):
     
     return modified_file
 
-# --- Streamlit Preview Helper ---
-def get_base64_html_preview(docx_io):
-    # Tạo base64 string từ file Word để nhúng vào HTML
-    base64_docx = base64.b64encode(docx_io.read()).decode('utf-8')
-    docx_io.seek(0)
-    
-    # HTML/JavaScript để tạo nút download nhanh
-    html = f"""
-    <div style="border: 1px solid #ccc; padding: 10px; text-align: center;">
-        <p>⚠️ TÍNH NĂNG PREVIEW TRỰC TIẾP KHÔNG THỂ THỰC HIỆN ĐƯỢC.</p>
-        <p>Vui lòng tải xuống file Word để xem thành phẩm cuối cùng.</p>
-        <a href="data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,{base64_docx}" download="preview.docx" style="text-decoration: none;">
-            <button style="padding: 10px 20px; background-color: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">
-                Tải xuống bản Preview để xem
-            </button>
-        </a>
-    </div>
-    """
-    return html
+# Bỏ hoàn toàn hàm get_base64_html_preview
 
-# --- GIAO DIỆN STREAMLIT ---
+# --- GIAO DIỆN STREAMLIT (Đã loại bỏ phần Preview) ---
 st.set_page_config(page_title="Automatic Word Script Editor", layout="wide")
 
 st.markdown("## 📄 Automatic Subtitle Script (.docx) Converter")
@@ -222,7 +225,7 @@ if uploaded_file is not None:
                 
                 new_filename = f"FORMATTED_{original_filename}"
 
-                st.success("✅ Định dạng hoàn tất! Bạn có thể xem và tải file về.")
+                st.success("✅ Định dạng hoàn tất! Bạn có thể tải file về.")
                 
                 # Nút tải file
                 st.download_button(
@@ -231,11 +234,6 @@ if uploaded_file is not None:
                     file_name=new_filename,
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 )
-                
-                # Thêm Preview
-                st.subheader("Xem trước thành phẩm")
-                modified_file_io.seek(0) # Đặt lại con trỏ file trước khi dùng cho preview
-                st.markdown(get_base64_html_preview(modified_file_io), unsafe_allow_html=True)
                 
                 st.markdown("---")
                 st.balloons()
