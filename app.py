@@ -8,7 +8,7 @@ import io
 import os
 import re
 import random
-import base64
+# Đã bỏ import base64 theo yêu cầu
 
 # --- Helper Functions and Constants ---
 
@@ -54,19 +54,25 @@ def generate_vibrant_rgb_colors(count=150):
     
     return list(colors)
 
-# Khởi tạo danh sách 150 màu
+# Khởi tạo danh sách 150 màu (sử dụng global)
 FONT_COLORS_RGB_150 = generate_vibrant_rgb_colors(150)
 
 speaker_color_map = {}
-used_colors = [RGBColor(r, g, b) for r, g, b in FONT_COLORS_RGB_150]
-random.shuffle(used_colors)
+used_colors = []
 
+# Logic để lấy màu duy nhất cho mỗi speaker
 def get_speaker_color(speaker_name):
-    # Logic to assign persistent random color
+    # Dùng global used_colors và speaker_color_map
+    global used_colors
+    global speaker_color_map
+    
+    # Chỉ gán màu mới nếu speaker chưa có trong map
     if speaker_name not in speaker_color_map:
         if used_colors:
+            # Lấy màu từ pool và loại bỏ để đảm bảo duy nhất
             color_object = used_colors.pop()
         else:
+            # Fallback nếu 150 màu đã hết (cực kỳ hiếm)
             r, g, b = random.choice(FONT_COLORS_RGB_150)
             color_object = RGBColor(r, g, b)
             
@@ -91,16 +97,18 @@ def set_all_text_formatting(doc):
         paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
         # Thiết lập Space Before chung: 0 pt
         paragraph.paragraph_format.space_before = Pt(0)
-        # Thiết lập Space After chung: 6 pt (Sẽ được ghi đè bằng 0pt cho Timecode bên dưới)
+        # Thiết lập Space After chung: 6 pt 
         paragraph.paragraph_format.space_after = Pt(6)
 
 
 def process_docx(uploaded_file, file_name_without_ext):
     """Performs all required document modifications by rebuilding the document to ensure correct formatting."""
     
+    # Reset mapping và color pool cho file mới
     global speaker_color_map
     global used_colors
     speaker_color_map = {}
+    # Khởi tạo lại color pool từ 150 màu và xáo trộn
     used_colors = [RGBColor(r, g, b) for r, g, b in FONT_COLORS_RGB_150]
     random.shuffle(used_colors)
     
@@ -135,15 +143,15 @@ def process_docx(uploaded_file, file_name_without_ext):
             
         new_paragraph = document.add_paragraph()
         new_paragraph.style = document.styles['Normal']
-        new_paragraph.paragraph_format.space_before = Pt(0) # Giữ 0pt Before
-        new_paragraph.paragraph_format.space_after = Pt(6) # Thiết lập 6pt After mặc định
+        new_paragraph.paragraph_format.space_before = Pt(0) 
+        new_paragraph.paragraph_format.space_after = Pt(6) 
         
         # B.2 Bold Timecode (Ghi đè Space After = 0)
         if TIMECODE_REGEX.match(text):
             new_paragraph.text = text
             for run in new_paragraph.runs:
                 run.font.bold = True
-            new_paragraph.paragraph_format.space_after = Pt(0) # Timecode không cần dãn đoạn 6pt
+            new_paragraph.paragraph_format.space_after = Pt(0) 
 
         # B.3 Nội dung (Speaker/Content)
         else:
@@ -163,6 +171,7 @@ def process_docx(uploaded_file, file_name_without_ext):
                 speaker_full = speaker_match.group(0) 
                 speaker_name = speaker_match.group(1).strip()
                 
+                # Lấy màu DUY NHẤT theo tên
                 font_color_object = get_speaker_color(speaker_name) 
                 rest_of_text = text[len(speaker_full):]
                 
@@ -226,26 +235,7 @@ def process_docx(uploaded_file, file_name_without_ext):
     
     return modified_file
 
-# --- Streamlit Preview Helper (Chỉ còn nút Download nhanh) ---
-def get_base64_html_preview(docx_io):
-    # Loại bỏ tính năng Preview
-    base64_docx = base64.b64encode(docx_io.read()).decode('utf-8')
-    docx_io.seek(0)
-    
-    html = f"""
-    <div style="border: 1px solid #ccc; padding: 10px; text-align: center;">
-        <p>⚠️ TÍNH NĂNG PREVIEW ĐÃ ĐƯỢC THAY BẰNG NÚT TẢI XUỐNG NHANH.</p>
-        <p>Vui lòng tải xuống file Word để xem thành phẩm cuối cùng.</p>
-        <a href="data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,{base64_docx}" download="preview.docx" style="text-decoration: none;">
-            <button style="padding: 10px 20px; background-color: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">
-                Tải xuống bản Preview để xem
-            </button>
-        </a>
-    </div>
-    """
-    return html
-
-# --- GIAO DIỆN STREAMLIT ---
+# --- GIAO DIỆN STREAMLIT (Đã loại bỏ Preview) ---
 st.set_page_config(page_title="Automatic Word Script Editor", layout="wide")
 
 st.markdown("## 📄 Automatic Subtitle Script (.docx) Converter")
@@ -271,7 +261,7 @@ if uploaded_file is not None:
                 
                 new_filename = f"FORMATTED_{original_filename}"
 
-                st.success("✅ Định dạng hoàn tất! Bạn có thể xem và tải file về.")
+                st.success("✅ Định dạng hoàn tất! Bạn có thể tải file về.")
                 
                 # Nút tải file
                 st.download_button(
@@ -281,10 +271,7 @@ if uploaded_file is not None:
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 )
                 
-                # Thêm Preview
-                st.subheader("Xem trước thành phẩm")
-                modified_file_io.seek(0) # Đặt lại con trỏ file trước khi dùng cho preview
-                st.markdown(get_base64_html_preview(modified_file_io), unsafe_allow_html=True)
+                # Đã loại bỏ phần xem trước thành phẩm theo yêu cầu cuối cùng.
                 
                 st.markdown("---")
                 st.balloons()
