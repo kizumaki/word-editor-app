@@ -1,44 +1,31 @@
 import streamlit as st
 from docx import Document
-from docx.shared import Pt, RGBColor
+from docx.shared import Pt, RGBColor, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.text import WD_LINE_SPACING
+from docx.enum.text import WD_TAB_ALIGNMENT, WD_TAB_LEADER
 import io
 import os
 import re
 import random
+import base64
 
-# --- Stable RGB Colors for Font (Text) Color (20 distinct options, all distinct from black) ---
+# --- Helper Functions and Constants ---
+
+# Colors remain the same (no pure black)
 FONT_COLORS_RGB = [
-    (192, 0, 0),      # Dark Red
-    (0, 51, 153),     # Dark Blue
-    (0, 102, 0),      # Dark Green
-    (102, 0, 102),    # Purple
-    (255, 128, 0),    # Orange
-    (0, 153, 153),    # Teal
-    (204, 102, 0),    # Brown
-    (153, 153, 0),    # Olive
-    (255, 0, 127),    # Bright Pink
-    (51, 51, 255),    # Medium Blue
-    (153, 51, 255),   # Lavender
-    (0, 204, 0),      # Bright Green
-    (255, 165, 0),    # Orange-Gold
-    (255, 51, 51),    # Light Red
-    (0, 204, 204),    # Cyan
-    (255, 204, 0),    # Gold
-    (102, 51, 0),     # Dark Brown
-    (0, 128, 0),      # Standard Green
-    (153, 0, 76),     # Wine
-    (255, 255, 102)   # Light Yellow
+    (192, 0, 0), (0, 51, 153), (0, 102, 0), (102, 0, 102), (255, 128, 0), 
+    (0, 153, 153), (204, 102, 0), (153, 153, 0), (255, 0, 127), (51, 51, 255), 
+    (153, 51, 255), (0, 204, 0), (255, 165, 0), (255, 51, 51), (0, 204, 204), 
+    (255, 204, 0), (102, 51, 0), (0, 128, 0), (153, 0, 76), (255, 255, 102)
 ]
 
-# Dictionary to store speaker names and their assigned font color (RGBColor object)
 speaker_color_map = {}
 used_colors = [RGBColor(r, g, b) for r, g, b in FONT_COLORS_RGB]
 random.shuffle(used_colors)
 
 def get_speaker_color(speaker_name):
-    """Assigns a persistent random RGBColor object (for font color) to a speaker."""
+    # Logic to assign persistent random color
     if speaker_name not in speaker_color_map:
         if used_colors:
             color_object = used_colors.pop()
@@ -50,29 +37,28 @@ def get_speaker_color(speaker_name):
         
     return speaker_color_map[speaker_name]
 
-# Define regex patterns for speakers and timecodes and HTML tags
+# Regexes remain the same
 SPEAKER_REGEX = re.compile(r"^([A-Z][a-z\s&]+):\s*", re.IGNORECASE)
 TIMECODE_REGEX = re.compile(r"^\d{2}:\d{2}:\d{2},\d{3}\s+-->\s+\d{2}:\d{2}:\d{2},\d{3}$")
-HTML_TAG_REGEX = re.compile(r"(</?[ibu]>)+", re.IGNORECASE)
 HTML_CONTENT_REGEX = re.compile(r"((?:</?[ibu]>)+)(.*?)(?:</?[ibu]>)+", re.IGNORECASE | re.DOTALL)
 
-
 def set_all_text_formatting(doc):
-    """Applies Times New Roman 12pt and standard line spacing to all runs/paragraphs."""
+    """Applies Times New Roman 12pt and specific Spacing (Before: 0pt, After: 6pt, Single Line) to all paragraphs."""
     for paragraph in doc.paragraphs:
-        # Set line spacing to Single
-        paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
-        
-        # Set font for all runs
+        # Áp dụng Font và Size
         for run in paragraph.runs:
             run.font.name = 'Times New Roman'
             run.font.size = Pt(12)
-            if run.font.size is None:
-                run.font.size = Pt(12)
+        
+        # FIX: Áp dụng dãn đoạn theo yêu cầu (Ảnh 1)
+        paragraph.paragraph_format.space_before = Pt(0)
+        # Giữ Space After = 0 cho các đoạn không phải nội dung (ví dụ: Timecode), 
+        # và cho phép logic ở dưới thiết lập Pt(6) cho nội dung.
+        paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
 
 
 def process_docx(uploaded_file, file_name_without_ext):
-    """Performs all required document modifications by rebuilding the document to ensure correct indexing."""
+    """Performs all required document modifications."""
     
     global speaker_color_map
     global used_colors
@@ -80,26 +66,22 @@ def process_docx(uploaded_file, file_name_without_ext):
     used_colors = [RGBColor(r, g, b) for r, g, b in FONT_COLORS_RGB]
     random.shuffle(used_colors)
     
-    # Load the original document and extract raw content paragraphs (remove empty lines)
-    original_document = Document(io.BytesIO(uploaded_file.read()))
+    original_document = Document(io.BytesIO(uploaded_file.getvalue()))
     raw_paragraphs = [p for p in original_document.paragraphs if p.text.strip()]
     
-    # 1. Create a NEW document to rebuild the structure cleanly
     document = Document()
     
-    # --- A. Set Main Title (Size 25, 2 blank lines after) ---
-    
-    # Add Title (Point 2: 25pt, Centered)
+    # --- A. Set Main Title (25pt, 2 blank lines after) ---
     title_paragraph = document.add_paragraph(file_name_without_ext.upper())
     title_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    title_paragraph.paragraph_format.space_after = Pt(0) # Ensure no extra space after title
+    title_paragraph.paragraph_format.space_after = Pt(0) # Loại bỏ dãn đoạn sau tiêu đề
     
     title_run = title_paragraph.runs[0]
     title_run.font.name = 'Times New Roman'
     title_run.font.size = Pt(25) 
     title_run.bold = True
     
-    # Point 2: Add two blank paragraphs
+    # Add two blank paragraphs
     document.add_paragraph().paragraph_format.space_after = Pt(0)
     document.add_paragraph().paragraph_format.space_after = Pt(0)
 
@@ -108,28 +90,32 @@ def process_docx(uploaded_file, file_name_without_ext):
     for paragraph in raw_paragraphs:
         text = paragraph.text.strip()
         
-        # --- B.1 Remove SRT Line Numbers ---
+        # B.1 Remove SRT Line Numbers
         if re.fullmatch(r"^\s*\d+\s*$", text):
-            continue # Skip line number paragraphs
+            continue 
             
         new_paragraph = document.add_paragraph()
         new_paragraph.style = document.styles['Normal']
         
-        # --- B.2 Bold Timecode ---
+        # B.2 Bold Timecode (Không dãn đoạn)
         if TIMECODE_REGEX.match(text):
             new_paragraph.text = text
             for run in new_paragraph.runs:
                 run.font.bold = True
-            new_paragraph.paragraph_format.space_after = Pt(0) # No space after timecode
+            new_paragraph.paragraph_format.space_after = Pt(0) 
 
-        # --- B.3 Bold Speaker Name, Random Font Color, & HTML Tags ---
+        # B.3 Nội dung (Speaker/Content)
         else:
-            # Point 4: Apply Pt(6) space after for content paragraphs (Close distance)
+            # FIX: Áp dụng dãn đoạn After 6pt (Cho các đoạn nội dung)
             new_paragraph.paragraph_format.space_after = Pt(6) 
             
             speaker_match = SPEAKER_REGEX.match(text)
+            
             if speaker_match:
-                # Point 1 FIX: Logic for the first speaker line (and all others) is now isolated and reliable
+                # FIX: Căn lề/Tab cho dòng có người nói (Tab 1 lần)
+                # Đặt tab dừng ở 0.5 inch (1.27 cm)
+                new_paragraph.paragraph_format.left_indent = Inches(0.5) 
+
                 speaker_full = speaker_match.group(0) 
                 speaker_name = speaker_match.group(1).strip()
                 
@@ -144,15 +130,21 @@ def process_docx(uploaded_file, file_name_without_ext):
                 current_text = rest_of_text
                 
             else:
-                current_text = text # No speaker, process full text for HTML tags
+                # Không có người nói, nội dung căn lề bình thường
+                current_text = text
 
-            # --- B.4 Process HTML tags within the current_text ---
-            
+            # B.4 Process HTML tags within the current_text (Bold and Italic)
             matches = list(HTML_CONTENT_REGEX.finditer(current_text))
-            
             last_end = 0
+            
+            # Nếu không có người nói, nội dung văn bản gốc sẽ bị xóa. 
+            # Ta phải đảm bảo new_paragraph đã được đặt text trống nếu nó không có speaker
+            if not speaker_match:
+                 new_paragraph.text = "" # Xóa nội dung gốc nếu không có speaker
+                 new_paragraph.paragraph_format.left_indent = None # Đảm bảo căn lề 0
+
             for match in matches:
-                tag_text = match.group(2) # The content inside the tags
+                tag_text = match.group(2) 
                 start, end = match.span()
 
                 # Add text BEFORE the tag (if any)
@@ -169,20 +161,42 @@ def process_docx(uploaded_file, file_name_without_ext):
             # Add remaining text AFTER the last tag (or the whole text if no tags found)
             if last_end < len(current_text):
                 new_paragraph.add_run(current_text[last_end:])
+            
+            # Xử lý trường hợp không có speaker và không có tag (nội dung đơn thuần)
+            elif not speaker_match and not matches:
+                new_paragraph.text = current_text # Gán lại nội dung
 
-
-    # --- C. Apply General Font/Size and Spacing ---
-    # Apply global formatting (Times New Roman 12pt, Single Line Spacing)
+    # C. Apply General Font/Size and Spacing (Global settings)
     set_all_text_formatting(document)
     
-    # Save the modified file to an in-memory buffer
+    # Save the file
     modified_file = io.BytesIO()
     document.save(modified_file)
     modified_file.seek(0)
     
     return modified_file
 
-# --- STREAMLIT INTERFACE ---
+# --- Streamlit Preview Helper ---
+def get_base64_html_preview(docx_io):
+    # Tạo base64 string từ file Word để nhúng vào HTML
+    base64_docx = base64.b64encode(docx_io.read()).decode('utf-8')
+    docx_io.seek(0)
+    
+    # Simple HTML/JavaScript to download the file directly (no true preview possible)
+    html = f"""
+    <div style="border: 1px solid #ccc; padding: 10px; text-align: center;">
+        <p>⚠️ TÍNH NĂNG PREVIEW TRỰC TIẾP KHÔNG THỂ THỰC HIỆN ĐƯỢC.</p>
+        <p>Vui lòng tải xuống file Word để xem thành phẩm cuối cùng.</p>
+        <a href="data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,{base64_docx}" download="preview.docx" style="text-decoration: none;">
+            <button style="padding: 10px 20px; background-color: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                Tải xuống bản Preview để xem
+            </button>
+        </a>
+    </div>
+    """
+    return html
+
+# --- GIAO DIỆN STREAMLIT ---
 st.set_page_config(page_title="Automatic Word Script Editor", layout="wide")
 
 st.markdown("## 📄 Automatic Subtitle Script (.docx) Converter")
@@ -192,36 +206,39 @@ st.markdown("---")
 uploaded_file = st.file_uploader(
     "1. Upload your Word file (.docx)",
     type=['docx'],
-    help="Only Microsoft Word .docx format is accepted. Max size 200MB."
+    help="Chỉ chấp nhận định dạng .docx của Microsoft Word."
 )
 
 if uploaded_file is not None:
     original_filename = uploaded_file.name
     file_name_without_ext = os.path.splitext(original_filename)[0]
     
-    st.info(f"File received: **{original_filename}**. The main title will be: **{file_name_without_ext.upper()}**")
+    st.info(f"File received: **{original_filename}**.")
     
     if st.button("2. RUN AUTOMATIC FORMATTING"):
-        with st.spinner('Processing and formatting the Word file...'):
+        with st.spinner('Đang xử lý và định dạng file...'):
             try:
                 modified_file_io = process_docx(uploaded_file, file_name_without_ext)
                 
                 new_filename = f"FORMATTED_{original_filename}"
 
-                st.success("✅ Formatting complete! You can download the file.")
+                st.success("✅ Định dạng hoàn tất! Bạn có thể xem và tải file về.")
                 
-                # Download button
+                # Nút tải file
                 st.download_button(
-                    label="3. Download Formatted Word File",
+                    label="3. Tải File Word Đã Định Dạng Về",
                     data=modified_file_io,
                     file_name=new_filename,
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 )
                 
+                # Thêm Preview (Streamlit không hỗ trợ preview DOCX trực tiếp, dùng cách download)
+                st.subheader("Xem trước thành phẩm")
+                st.markdown(get_base64_html_preview(modified_file_io), unsafe_allow_html=True)
+                
                 st.markdown("---")
                 st.balloons()
 
             except Exception as e:
-                # This catches any remaining error and displays the specific message
-                st.error(f"An error occurred during processing: {e}")
-                st.warning("Please check the formatting of your input file (e.g., timecodes and speaker names must match the expected pattern).")
+                st.error(f"Đã xảy ra lỗi trong quá trình xử lý: {e}")
+                st.warning("Vui lòng kiểm tra lại định dạng file đầu vào.")
