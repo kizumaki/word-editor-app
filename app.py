@@ -3,6 +3,7 @@ from docx import Document
 from docx.shared import Pt, RGBColor, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.text import WD_LINE_SPACING
+from docx.enum.text import WD_TAB_ALIGNMENT, WD_TAB_LEADER # FIX: Thêm import WD_TAB_ALIGNMENT
 import io
 import os
 import re
@@ -136,8 +137,8 @@ def process_docx(uploaded_file, file_name_without_ext):
 
             # --- B.4 Process HTML tags within the current_text ---
             
-            # Nếu có người nói, tiếp tục thêm nội dung sau tab
             if speaker_match:
+                # Nếu có người nói, tiếp tục thêm nội dung sau tab
                 matches = list(HTML_CONTENT_REGEX.finditer(current_text))
                 last_end = 0
                 
@@ -160,16 +161,17 @@ def process_docx(uploaded_file, file_name_without_ext):
                 if last_end < len(current_text):
                     new_paragraph.add_run(current_text[last_end:])
             
-            # Nếu không có người nói (chỉ là nội dung tiếp theo), thêm nội dung
             else:
-                new_paragraph.text = current_text # Gán lại nội dung nếu không có speaker
+                # Nếu không có người nói (chỉ là nội dung tiếp theo), thêm nội dung
+                new_paragraph.text = current_text 
 
 
     # C. Apply General Font/Size and Spacing (Global settings)
     set_all_text_formatting(document)
     
     # Save the file
-    modified_file = io.Bytesिओ(document.save)
+    modified_file = io.BytesIO()
+    document.save(modified_file)
     modified_file.seek(0)
     
     return modified_file
