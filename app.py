@@ -3,7 +3,6 @@ from docx import Document
 from docx.shared import Pt, RGBColor, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.text import WD_LINE_SPACING
-from docx.enum.text import WD_TAB_ALIGNMENT, WD_TAB_LEADER
 import io
 import os
 import re
@@ -12,7 +11,7 @@ import base64
 
 # --- Helper Functions and Constants ---
 
-# Colors remain the same (no pure black)
+# Colors remain the same
 FONT_COLORS_RGB = [
     (192, 0, 0), (0, 51, 153), (0, 102, 0), (102, 0, 102), (255, 128, 0), 
     (0, 153, 153), (204, 102, 0), (153, 153, 0), (255, 0, 127), (51, 51, 255), 
@@ -43,22 +42,20 @@ TIMECODE_REGEX = re.compile(r"^\d{2}:\d{2}:\d{2},\d{3}\s+-->\s+\d{2}:\d{2}:\d{2}
 HTML_CONTENT_REGEX = re.compile(r"((?:</?[ibu]>)+)(.*?)(?:</?[ibu]>)+", re.IGNORECASE | re.DOTALL)
 
 def set_all_text_formatting(doc):
-    """Applies Times New Roman 12pt and specific Spacing (Before: 0pt, After: 6pt, Single Line) to all paragraphs."""
+    """Applies Times New Roman 12pt and specific Spacing (Before: 0pt, After: 6pt, Single Line) to all runs/paragraphs."""
     for paragraph in doc.paragraphs:
         # Áp dụng Font và Size
         for run in paragraph.runs:
             run.font.name = 'Times New Roman'
             run.font.size = Pt(12)
         
-        # FIX: Áp dụng dãn đoạn theo yêu cầu (Ảnh 1)
+        # Thiết lập dãn đoạn chung cho tất cả các đoạn (sẽ được ghi đè bên dưới)
         paragraph.paragraph_format.space_before = Pt(0)
-        # Giữ Space After = 0 cho các đoạn không phải nội dung (ví dụ: Timecode), 
-        # và cho phép logic ở dưới thiết lập Pt(6) cho nội dung.
         paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
 
 
 def process_docx(uploaded_file, file_name_without_ext):
-    """Performs all required document modifications."""
+    """Performs all required document modifications by rebuilding the document to ensure correct formatting."""
     
     global speaker_color_map
     global used_colors
@@ -74,7 +71,8 @@ def process_docx(uploaded_file, file_name_without_ext):
     # --- A. Set Main Title (25pt, 2 blank lines after) ---
     title_paragraph = document.add_paragraph(file_name_without_ext.upper())
     title_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    title_paragraph.paragraph_format.space_after = Pt(0) # Loại bỏ dãn đoạn sau tiêu đề
+    title_paragraph.paragraph_format.space_before = Pt(0)
+    title_paragraph.paragraph_format.space_after = Pt(0) 
     
     title_run = title_paragraph.runs[0]
     title_run.font.name = 'Times New Roman'
@@ -96,6 +94,7 @@ def process_docx(uploaded_file, file_name_without_ext):
             
         new_paragraph = document.add_paragraph()
         new_paragraph.style = document.styles['Normal']
+        new_paragraph.paragraph_format.space_before = Pt(0)
         
         # B.2 Bold Timecode (Không dãn đoạn)
         if TIMECODE_REGEX.match(text):
@@ -112,66 +111,65 @@ def process_docx(uploaded_file, file_name_without_ext):
             speaker_match = SPEAKER_REGEX.match(text)
             
             if speaker_match:
-                # FIX: Căn lề/Tab cho dòng có người nói (Tab 1 lần)
-                # Đặt tab dừng ở 0.5 inch (1.27 cm)
-                new_paragraph.paragraph_format.left_indent = Inches(0.5) 
-
+                # FIX: Xử lý căn lề/Tab theo Ảnh 2: Thụt lề đầu dòng và Dùng Tab
+                # Đặt tab stop ở vị trí mong muốn (ví dụ: 1 inch)
+                new_paragraph.paragraph_format.tab_stops.add_tab_stop(Inches(1.0), WD_TAB_ALIGNMENT.LEFT)
+                
                 speaker_full = speaker_match.group(0) 
                 speaker_name = speaker_match.group(1).strip()
                 
                 font_color_object = get_speaker_color(speaker_name) 
                 rest_of_text = text[len(speaker_full):]
                 
-                # Run for the speaker name (Bold and Font Color)
+                # 1. Run for the speaker name (Bold and Font Color)
                 run_speaker = new_paragraph.add_run(speaker_full)
                 run_speaker.font.bold = True
                 run_speaker.font.color.rgb = font_color_object 
                 
+                # 2. Insert Tab character to align the dialogue text
+                new_paragraph.add_run('\t') 
+                
                 current_text = rest_of_text
                 
             else:
-                # Không có người nói, nội dung căn lề bình thường
                 current_text = text
 
-            # B.4 Process HTML tags within the current_text (Bold and Italic)
-            matches = list(HTML_CONTENT_REGEX.finditer(current_text))
-            last_end = 0
+            # --- B.4 Process HTML tags within the current_text ---
             
-            # Nếu không có người nói, nội dung văn bản gốc sẽ bị xóa. 
-            # Ta phải đảm bảo new_paragraph đã được đặt text trống nếu nó không có speaker
-            if not speaker_match:
-                 new_paragraph.text = "" # Xóa nội dung gốc nếu không có speaker
-                 new_paragraph.paragraph_format.left_indent = None # Đảm bảo căn lề 0
-
-            for match in matches:
-                tag_text = match.group(2) 
-                start, end = match.span()
-
-                # Add text BEFORE the tag (if any)
-                if start > last_end:
-                    new_paragraph.add_run(current_text[last_end:start])
+            # Nếu có người nói, tiếp tục thêm nội dung sau tab
+            if speaker_match:
+                matches = list(HTML_CONTENT_REGEX.finditer(current_text))
+                last_end = 0
                 
-                # Add the HTML content (Bold and Italic)
-                run_html = new_paragraph.add_run(tag_text)
-                run_html.font.bold = True
-                run_html.font.italic = True
-                
-                last_end = end
+                for match in matches:
+                    tag_text = match.group(2) 
+                    start, end = match.span()
 
-            # Add remaining text AFTER the last tag (or the whole text if no tags found)
-            if last_end < len(current_text):
-                new_paragraph.add_run(current_text[last_end:])
+                    # Add text BEFORE the tag (if any)
+                    if start > last_end:
+                        new_paragraph.add_run(current_text[last_end:start])
+                    
+                    # Add the HTML content (Bold and Italic)
+                    run_html = new_paragraph.add_run(tag_text)
+                    run_html.font.bold = True
+                    run_html.font.italic = True
+                    
+                    last_end = end
+
+                # Add remaining text AFTER the last tag
+                if last_end < len(current_text):
+                    new_paragraph.add_run(current_text[last_end:])
             
-            # Xử lý trường hợp không có speaker và không có tag (nội dung đơn thuần)
-            elif not speaker_match and not matches:
-                new_paragraph.text = current_text # Gán lại nội dung
+            # Nếu không có người nói (chỉ là nội dung tiếp theo), thêm nội dung
+            else:
+                new_paragraph.text = current_text # Gán lại nội dung nếu không có speaker
+
 
     # C. Apply General Font/Size and Spacing (Global settings)
     set_all_text_formatting(document)
     
     # Save the file
-    modified_file = io.BytesIO()
-    document.save(modified_file)
+    modified_file = io.Bytesिओ(document.save)
     modified_file.seek(0)
     
     return modified_file
@@ -182,7 +180,7 @@ def get_base64_html_preview(docx_io):
     base64_docx = base64.b64encode(docx_io.read()).decode('utf-8')
     docx_io.seek(0)
     
-    # Simple HTML/JavaScript to download the file directly (no true preview possible)
+    # HTML/JavaScript để tạo nút download nhanh
     html = f"""
     <div style="border: 1px solid #ccc; padding: 10px; text-align: center;">
         <p>⚠️ TÍNH NĂNG PREVIEW TRỰC TIẾP KHÔNG THỂ THỰC HIỆN ĐƯỢC.</p>
@@ -232,8 +230,9 @@ if uploaded_file is not None:
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 )
                 
-                # Thêm Preview (Streamlit không hỗ trợ preview DOCX trực tiếp, dùng cách download)
+                # Thêm Preview
                 st.subheader("Xem trước thành phẩm")
+                modified_file_io.seek(0) # Đặt lại con trỏ file trước khi dùng cho preview
                 st.markdown(get_base64_html_preview(modified_file_io), unsafe_allow_html=True)
                 
                 st.markdown("---")
