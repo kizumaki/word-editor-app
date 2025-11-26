@@ -4,6 +4,7 @@ from docx.shared import Pt, RGBColor, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.text import WD_LINE_SPACING
 from docx.enum.text import WD_TAB_ALIGNMENT
+from docx.oxml.ns import qn # Import cần thiết cho xử lý XML
 import io
 import os
 import re
@@ -178,21 +179,14 @@ def format_and_split_dialogue(document, text):
         run_speaker.font.bold = True
         run_speaker.font.color.rgb = font_color_object 
         
-        # --- FIX LỖI XUỐNG DÒNG (Chỉ áp dụng khi chỉ có 1 người nói) ---
+        # --- FIX: Xóa khoảng trắng sau tên người nói (chỉ khi có một người nói) ---
         if len(speaker_matches) == 1:
-            # Lấy đối tượng XML của Run cuối cùng (tên người nói)
             r_element = run_speaker._element
-            
-            # Kiểm tra và xóa bất kỳ khoảng trắng nào ngay sau Run trong XML (lô-gic cực kỳ kỹ thuật)
-            # Điều này ngăn Word coi khoảng trắng là một ngắt dòng
+            # Kiểm tra và xóa khoảng trắng (nếu có) ở phần 'tail' của XML run
             if r_element.tail and r_element.tail.startswith(' '):
                 r_element.tail = r_element.tail[1:]
-            
-            # Xóa bất kỳ run trống nào có thể chứa ngắt dòng nếu có
-            if len(new_paragraph.runs) > 1 and not new_paragraph.runs[-1].text.strip():
-                 r_element.getparent().remove(new_paragraph.runs[-1]._element)
-            
-        # 2. Xử lý Tab Linh hoạt (1 Tab hoặc 2 Tab)
+        
+        # 2. Xử lý Tab Linh hoạt (1 Tab hoặc 2 Tab) - YÊU CẦU CUỐI CÙNG
         # Nếu tên người nói (đã bao gồm ": ") dài hơn 10 ký tự, cần 2 Tabs
         if len(speaker_full) > 10:
              new_paragraph.add_run('\t\t') 
