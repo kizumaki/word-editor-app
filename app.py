@@ -17,8 +17,8 @@ def generate_vibrant_rgb_colors(count=150):
     colors = set()
     while len(colors) < count:
         h = random.random()
-        s = 0.9 
-        v = 0.6 # FIX: Value/Brightness TRUNG BÌNH (Để màu chữ đủ tối)
+        s = 0.9 # Saturation cao
+        v = 0.6 # Value/Brightness TRUNG BÌNH/THẤP (FIX: Để màu chữ đủ tối, tăng tương phản)
         
         if s == 0.0: r = g = b = v
         else:
@@ -42,18 +42,7 @@ speaker_color_map = {}
 highlight_map = {} 
 used_colors = []
 
-# FIX: THAY THẾ TÊN HẰNG SỐ BẰNG GIÁ TRỊ SỐ NGUYÊN (ỔN ĐỊNH NHẤT)
-HIGHLIGHT_CYCLE = [
-    6,  # YELLOW
-    3,  # TURQUOISE
-    14, # PINK
-    11, # BRIGHT_GREEN
-    1,  # PALE_BLUE
-    5,  # LIGHT_ORANGE
-    15, # TEAL
-    13  # VIOLET
-] 
-
+# FIX: Chỉ dùng Highlight Trắng (Index.WHITE) cho độ tương phản tối đa
 def get_speaker_color(speaker_name):
     global used_colors
     global speaker_color_map
@@ -68,13 +57,12 @@ def get_speaker_color(speaker_name):
             
         speaker_color_map[speaker_name] = color_object
         
-        # Gán màu Highlight luân phiên cho speaker mới
-        speaker_id = len(speaker_color_map)
-        highlight_map[speaker_name] = HIGHLIGHT_CYCLE[speaker_id % len(HIGHLIGHT_CYCLE)]
+        # FIX: Chỉ dùng Highlight Trắng an toàn
+        highlight_map[speaker_name] = WD_COLOR_INDEX.WHITE
         
     return speaker_color_map[speaker_name]
 
-# FIX: Danh sách các cụm từ KHÔNG phải là tên người nói (Đã tinh lọc lần cuối)
+# FIX: Danh sách các cụm từ KHÔNG phải là tên người nói (Giữ nguyên)
 NON_SPEAKER_PHRASES = {
     "AND REMEMBER", "OFFICIAL DISTANCE", "GOOD NEWS FOR THEIR TEAMMATES", 
     "LL BE HONEST", "FIRST AND FOREMOST", "I SAID", "THE ONLY THING LEFT TO SETTLE", 
@@ -103,9 +91,10 @@ def set_all_text_formatting(doc, start_index=0):
             run.font.name = 'Times New Roman'
             run.font.size = Pt(12) 
         
-        paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
+        # FIX Dãn dòng 1.5 Lines, 0pt Before/After
+        paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE 
         paragraph.paragraph_format.space_before = Pt(0)
-        paragraph.paragraph_format.space_after = Pt(6)
+        paragraph.paragraph_format.space_after = Pt(0) 
 
 def apply_html_formatting_to_run(paragraph, current_text):
     """Thêm nội dung văn bản, xử lý các thẻ HTML <i>, <b>, <u>."""
@@ -278,7 +267,7 @@ def process_docx(uploaded_file, file_name_without_ext):
     
     document = Document()
     
-    # --- A. Set Main Title (Size 20, 2 Dòng trắng sau) ---
+    # --- A. Set Main Title (FIX: Size 20, 2 Dòng trắng sau) ---
     title_text_raw = file_name_without_ext.upper()
     title_text = title_text_raw.replace("CONVERTED_", "").replace("FORMATTED_", "").replace("_EDIT", "").replace(" (GỐC)", "").strip()
     
