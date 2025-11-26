@@ -58,9 +58,12 @@ SPEAKER_REGEX_DELIMITER = re.compile(r"([A-Z][a-z\s&]+):\s*", re.IGNORECASE)
 TIMECODE_REGEX = re.compile(r"^\d{2}:\d{2}:\d{2},\d{3}\s+-->\s+\d{2}:\d{2}:\d{2},\d{3}$")
 HTML_CONTENT_REGEX = re.compile(r"((?:</?[ibu]>)+)(.*?)(?:</?[ibu]>)+", re.IGNORECASE | re.DOTALL)
 
-def set_all_text_formatting(doc):
+def set_all_text_formatting(doc, start_index=0): # FIX: Thêm start_index
     """Áp dụng định dạng chung cho toàn bộ văn bản."""
-    for paragraph in doc.paragraphs:
+    for i, paragraph in enumerate(doc.paragraphs):
+        if i < start_index: # Bỏ qua tiêu đề và danh sách người nói
+            continue
+            
         for run in paragraph.runs:
             run.font.name = 'Times New Roman'
             run.font.size = Pt(12)
@@ -212,7 +215,7 @@ def process_docx(uploaded_file, file_name_without_ext):
     
     # --- A. Set Main Title (FIX: Size 60, Thêm Dòng liệt kê Tên người nói) ---
     
-    # 1. Làm sạch tên file để làm Tiêu đề
+    # Làm sạch tên file để làm tiêu đề
     title_text_raw = file_name_without_ext.upper()
     title_text = title_text_raw.replace("CONVERTED_", "").replace("FORMATTED_", "").replace("_EDIT", "").replace(" (GỐC)", "").strip()
     
@@ -226,10 +229,8 @@ def process_docx(uploaded_file, file_name_without_ext):
     title_run.font.size = Pt(60) # FIX: Size 60
     title_run.bold = True
     
-    # 2. Thu thập tất cả tên người nói duy nhất và theo thứ tự
+    # 2. Thu thập tất cả tên người nói duy nhất
     unique_speakers_ordered = []
-    
-    # Sử dụng tập hợp (set) để lưu trữ tên đã thấy và duy trì thứ tự xuất hiện
     seen_speakers = set()
     
     for paragraph in raw_paragraphs:
@@ -266,7 +267,7 @@ def process_docx(uploaded_file, file_name_without_ext):
         if not text:
             continue
         
-        # FIX: BỎ dòng "SRT Conversion:..." hoàn toàn (Bao gồm cả các biến thể)
+        # FIX: BỎ dòng "SRT Conversion:..." hoàn toàn
         if text.lower().startswith("srt conversion"):
             continue 
             
@@ -287,8 +288,9 @@ def process_docx(uploaded_file, file_name_without_ext):
             format_and_split_dialogue(document, text)
             
     # C. Apply General Font/Size and Spacing (Global settings)
-    set_all_text_formatting(document)
-    
+    # FIX: Chỉnh lại để chỉ áp dụng cho đoạn văn bản sau 3 đoạn đầu (Tiêu đề, List, Dòng trắng)
+    set_all_text_formatting(document, start_index=3) # Bỏ qua 3 đoạn đầu
+
     # Save the file
     modified_file = io.BytesIO()
     document.save(modified_file)
