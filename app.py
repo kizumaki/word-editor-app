@@ -42,7 +42,18 @@ speaker_color_map = {}
 highlight_map = {} 
 used_colors = []
 
-# FIX: Chỉ dùng Highlight Trắng (Index.WHITE) cho độ tương phản tối đa
+# FIX: Tăng số lượng màu Highlight an toàn (Index)
+HIGHLIGHT_CYCLE = [
+    6,  # YELLOW
+    3,  # TURQUOISE
+    14, # PINK
+    11, # BRIGHT_GREEN
+    1,  # PALE_BLUE
+    5,  # LIGHT_ORANGE
+    15, # TEAL
+    13  # VIOLET
+] 
+
 def get_speaker_color(speaker_name):
     global used_colors
     global speaker_color_map
@@ -57,12 +68,13 @@ def get_speaker_color(speaker_name):
             
         speaker_color_map[speaker_name] = color_object
         
-        # FIX: Chỉ dùng Highlight Trắng an toàn
-        highlight_map[speaker_name] = WD_COLOR_INDEX.WHITE
+        # Gán màu Highlight luân phiên cho speaker mới
+        speaker_id = len(speaker_color_map)
+        highlight_map[speaker_name] = HIGHLIGHT_CYCLE[speaker_id % len(HIGHLIGHT_CYCLE)]
         
     return speaker_color_map[speaker_name]
 
-# FIX: Danh sách các cụm từ KHÔNG phải là tên người nói (Giữ nguyên)
+# FIX: Danh sách các cụm từ KHÔNG phải là tên người nói (Đã tinh lọc lần cuối)
 NON_SPEAKER_PHRASES = {
     "AND REMEMBER", "OFFICIAL DISTANCE", "GOOD NEWS FOR THEIR TEAMMATES", 
     "LL BE HONEST", "FIRST AND FOREMOST", "I SAID", "THE ONLY THING LEFT TO SETTLE", 
@@ -267,7 +279,7 @@ def process_docx(uploaded_file, file_name_without_ext):
     
     document = Document()
     
-    # --- A. Set Main Title (FIX: Size 20, 2 Dòng trắng sau) ---
+    # --- A. Set Main Title (Size 20, 2 Dòng trắng sau) ---
     title_text_raw = file_name_without_ext.upper()
     title_text = title_text_raw.replace("CONVERTED_", "").replace("FORMATTED_", "").replace("_EDIT", "").replace(" (GỐC)", "").strip()
     
