@@ -12,27 +12,6 @@ import random
 
 # --- Helper Functions and Constants ---
 
-# Define non-speaker phrases to filter out from dialogue lines
-NON_SPEAKER_PHRASES = {
-    "AND REMEMBER", "OFFICIAL DISTANCE", "GOOD NEWS FOR THEIR TEAMMATES", 
-    "LL BE HONEST", "FIRST AND FOREMOST", "I SAID", "THE ONLY THING LEFT TO SETTLE", 
-    "QUESTION IS", "FINALISTS", "CONTESTANTS", "TEAM PURPLE", "TEAM GREEN", 
-    "TEAM PINK", "DUDE PERFECT", "TITLE VO", "WHISPERS", "SRT CONVERSION", 
-    "WILL RED THRIVE OR WILL RED BE DEAD", "BUT REMEMBER", "THE RESULTS ARE IN", 
-    "WE CHALLENGED", "I THINK", "IN THEIR DEFENSE", "THE PEAK OF HIS LIFE WAS DOING THE SPACETHING",
-    "THE ROCKETS ARE BIGGER", "THE DISTANCE SHOULD BE FURTHER", "GET CRAFTY", "THAT WAS SO SICK",
-    "OUT OF 100 CONTESTANTS", "THE FIRST ROUND IS BRUTAL", "YOU KNOW WHICH END GOES",
-    "THE GAME IS ON", "THAT'S A GOOD THROW", "HE'S GOING FOR IT", "WE GOT THIS",
-    "LAUNCH", "OH NO", "OH", "AH", "YEP", "WAIT", "YEAH", "WOO", "OKAY", "YES"
-}
-
-# Regexes
-SPEAKER_REGEX_DELIMITER = re.compile(r"([A-Z][a-z\s&]+):\s*", re.IGNORECASE)
-TIMECODE_REGEX = re.compile(r"^\d{2}:\d{2}:\d{2},\d{3}\s+-->\s+\d{2}:\d{2}:\d{2},\d{3}$")
-HTML_CONTENT_REGEX = re.compile(r"((?:</?[ibu]>)+)(.*?)(?:</?[ibu]>)+", re.IGNORECASE | re.DOTALL)
-
-# --- Color Generation and Mapping ---
-
 def generate_vibrant_rgb_colors(count=150):
     """Generates a list of highly saturated, distinct RGB colors (DARKER for better contrast)."""
     colors = set()
@@ -52,6 +31,7 @@ def generate_vibrant_rgb_colors(count=150):
             else: r, g, b = v, p, q
         
         r, g, b = int(r * 255), int(g * 255), int(b * 255)
+        # Ensure colors are dark/medium for high contrast on light backgrounds
         if r > 200 and g > 200 and b > 200: continue 
         colors.add((r, g, b))
     
@@ -95,7 +75,39 @@ def get_speaker_color(speaker_name):
         
     return speaker_color_map[speaker_name]
 
-# --- Formatting Helpers ---
+# List of common phrases mistakenly identified as speakers (for filtering)
+NON_SPEAKER_PHRASES = {
+    "AND REMEMBER", "OFFICIAL DISTANCE", "GOOD NEWS FOR THEIR TEAMMATES", 
+    "LL BE HONEST", "FIRST AND FOREMOST", "I SAID", "THE ONLY THING LEFT TO SETTLE", 
+    "QUESTION IS", "FINALISTS", "CONTESTANTS", "TEAM PURPLE", "TEAM GREEN", 
+    "TEAM PINK", "DUDE PERFECT", "TITLE VO", "WHISPERS", "SRT CONVERSION", 
+    "WILL RED THRIVE OR WILL RED BE DEAD", "BUT REMEMBER", "THE RESULTS ARE IN", 
+    "WE CHALLENGED", "I THINK", "IN THEIR DEFENSE", "THE PEAK OF HIS LIFE WAS DOING THE SPACETHING",
+    "THE ROCKETS ARE BIGGER", "THE DISTANCE SHOULD BE FURTHER", "GET CRAFTY", "THAT WAS SO SICK",
+    "OUT OF 100 CONTESTANTS", "THE FIRST ROUND IS BRUTAL", "YOU KNOW WHICH END GOES",
+    "THE GAME IS ON", "THAT'S A GOOD THROW", "HE'S GOING FOR IT", "WE GOT THIS",
+    "LAUNCH", "OH NO", "OH", "AH", "YEP", "WAIT", "YEAH", "WOO", "OKAY", "YES"
+}
+
+# Regexes remain the same
+SPEAKER_REGEX_DELIMITER = re.compile(r"([A-Z][a-z\s&]+):\s*", re.IGNORECASE)
+TIMECODE_REGEX = re.compile(r"^\d{2}:\d{2}:\d{2},\d{3}\s+-->\s+\d{2}:\d{2}:\d{2},\d{3}$")
+HTML_CONTENT_REGEX = re.compile(r"((?:</?[ibu]>)+)(.*?)(?:</?[ibu]>)+", re.IGNORECASE | re.DOTALL)
+
+def set_all_text_formatting(doc, start_index=0):
+    """Applies Times New Roman 12pt and general paragraph formatting."""
+    for i, paragraph in enumerate(doc.paragraphs):
+        if i < start_index:
+            continue
+            
+        for run in paragraph.runs:
+            run.font.name = 'Times New Roman'
+            run.font.size = Pt(12) 
+        
+        # Line Spacing 1.5 Lines, 0pt Before/After
+        paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE 
+        paragraph.paragraph_format.space_before = Pt(0)
+        paragraph.paragraph_format.space_after = Pt(0) 
 
 def apply_html_formatting_to_run(paragraph, current_text):
     """Adds text to a paragraph, applying Bold/Italic if enclosed in <i>/<b>/<u> tags."""
@@ -121,75 +133,53 @@ def apply_html_formatting_to_run(paragraph, current_text):
     if last_end < len(current_text):
         paragraph.add_run(current_text[last_end:])
 
-# --- Core Logic for Document Manipulation ---
-
+# Logic for handling Tabs and Indentation (Hanging Indent structure)
 def format_and_split_dialogue(document, text):
     """
-    Splits a raw text line (which might contain multiple speakers) into separate paragraphs
-    and applies precise Tab/Hanging Indent formatting.
+    Splits a raw text line (which might contain multi-speakers) into separate dialogue 
+    paragraphs and applies the required Tab/Hanging Indent formatting.
     """
     
     TAB_STOP_POSITION = Inches(1.0) # Dialogue start position
     
-    # Check for simple continuation line (no speaker)
-    if not SPEAKER_REGEX_DELIMITER.search(text):
-        new_paragraph = document.add_paragraph()
-        
-        # Apply Hanging Indent structure for all dialogue lines
-        new_paragraph.paragraph_format.left_indent = TAB_STOP_POSITION
-        new_paragraph.paragraph_format.first_line_indent = Inches(-1.0) 
-        new_paragraph.paragraph_format.tab_stops.add_tab_stop(TAB_STOP_POSITION, WD_TAB_ALIGNMENT.LEFT)
-        
-        new_paragraph.add_run('\t') # Always use 1 Tab for continuation
-        
-        # Spacing
-        new_paragraph.paragraph_format.space_after = Pt(0) 
-        new_paragraph.paragraph_format.space_before = Pt(0)
-        
-        apply_html_formatting_to_run(new_paragraph, text)
-        return
-    
     # Process multi-speaker and complex lines
-    
     speaker_matches = list(SPEAKER_REGEX_DELIMITER.finditer(text))
     last_processed_index = 0
     
+    # 1. Process Leading Content (before the first speaker or Continuation Line)
+    leading_content = text[last_processed_index:speaker_matches[0].start()].strip() if speaker_matches else text.strip()
+    
+    if leading_content:
+        # If no speakers found at all (simple continuation) OR content precedes first speaker
+        continuation_paragraph = document.add_paragraph()
+        
+        # Apply Hanging Indent structure
+        continuation_paragraph.paragraph_format.left_indent = TAB_STOP_POSITION
+        continuation_paragraph.paragraph_format.first_line_indent = Inches(-1.0)
+        continuation_paragraph.paragraph_format.tab_stops.add_tab_stop(TAB_STOP_POSITION, WD_TAB_ALIGNMENT.LEFT)
+        
+        continuation_paragraph.add_run('\t') 
+        continuation_paragraph.paragraph_format.space_after = Pt(0)
+        continuation_paragraph.paragraph_format.space_before = Pt(0)
+        apply_html_formatting_to_run(continuation_paragraph, leading_content)
+        
+        if not speaker_matches: # If no speakers were found, we are done
+            return
+            
+        last_processed_index = speaker_matches[0].start()
+    
+    # 2. Iterate through all identified speakers
     for i, match in enumerate(speaker_matches):
         speaker_full = match.group(0) 
         speaker_name = match.group(1).strip()
         start, end = match.span()
         
-        # 1. Process Leading Content (if any text precedes the current speaker)
-        leading_content = text[last_processed_index:start].strip()
-        if leading_content:
-            continuation_paragraph = document.add_paragraph()
-            continuation_paragraph.paragraph_format.left_indent = TAB_STOP_POSITION
-            continuation_paragraph.paragraph_format.first_line_indent = Inches(-1.0)
-            continuation_paragraph.paragraph_format.tab_stops.add_tab_stop(TAB_STOP_POSITION, WD_TAB_ALIGNMENT.LEFT)
-            
-            continuation_paragraph.add_run('\t') 
-            continuation_paragraph.paragraph_format.space_after = Pt(0)
-            continuation_paragraph.paragraph_format.space_before = Pt(0)
-            apply_html_formatting_to_run(continuation_paragraph, leading_content)
-
-        # 2. Check for Non-Speaker Phrase
+        # FIX LỌC: Check for Non-Speaker Phrase
         if speaker_name.upper() in NON_SPEAKER_PHRASES:
-            # If it's a descriptive phrase (like "OFFICIAL DISTANCE"), treat the rest of the line as continuation
-            content_block = text[start:] 
+            # If it's a non-speaker, skip it but ensure the content is passed to the next element
+            last_processed_index = end 
+            continue 
             
-            continuation_paragraph = document.add_paragraph()
-            continuation_paragraph.paragraph_format.left_indent = TAB_STOP_POSITION
-            continuation_paragraph.paragraph_format.first_line_indent = Inches(-1.0)
-            continuation_paragraph.paragraph_format.tab_stops.add_tab_stop(TAB_STOP_POSITION, WD_TAB_ALIGNMENT.LEFT)
-            
-            continuation_paragraph.add_run('\t') 
-            apply_html_formatting_to_run(continuation_paragraph, content_block)
-            continuation_paragraph.paragraph_format.space_after = Pt(0)
-            continuation_paragraph.paragraph_format.space_before = Pt(0)
-            return # Exit function as the rest of the line is handled
-
-        # 3. Process Valid Speaker
-        
         # Determine the content belonging to this speaker
         if i + 1 < len(speaker_matches):
             next_match_start = speaker_matches[i+1].start()
@@ -203,23 +193,26 @@ def format_and_split_dialogue(document, text):
         # Apply Hanging Indent structure for all dialogue lines
         new_paragraph.paragraph_format.left_indent = TAB_STOP_POSITION
         new_paragraph.paragraph_format.first_line_indent = Inches(-1.0)
+        
+        # Set Tab Stop at 1.0 inch
         new_paragraph.paragraph_format.tab_stops.add_tab_stop(TAB_STOP_POSITION, WD_TAB_ALIGNMENT.LEFT)
         
-        # Run for the speaker name (Bold, Font Color, and Highlight)
+        # 1. Run for the speaker name (Bold and Color)
         font_color_object = get_speaker_color(speaker_name) 
         run_speaker = new_paragraph.add_run(speaker_full)
         run_speaker.font.bold = True
         run_speaker.font.color.rgb = font_color_object 
         
-        run_speaker.font.highlight_color = highlight_map[speaker_name] # Apply high-contrast highlight
+        # Apply high-contrast highlight
+        run_speaker.font.highlight_color = highlight_map[speaker_name] 
         
-        # Conditional Tab logic (1 Tab or 2 Tabs)
+        # 2. Conditional Tab logic (1 Tab or 2 Tabs)
         if len(speaker_full) > 10:
              new_paragraph.add_run('\t\t') 
         else:
              new_paragraph.add_run('\t') 
 
-        # Add dialogue content (on the same line)
+        # 3. Add dialogue content
         if content:
             apply_html_formatting_to_run(new_paragraph, content)
 
@@ -227,33 +220,35 @@ def format_and_split_dialogue(document, text):
         new_paragraph.paragraph_format.space_after = Pt(0)
         new_paragraph.paragraph_format.space_before = Pt(0)
         
-        last_processed_index = next_match_start # Update index for next iteration
-    
-    # If the function reaches here, all parts were processed.
+        last_processed_index = next_match_start # Update index
+
     return 
 
+# --- Main Processing Function ---
 
 def process_docx(uploaded_file, file_name_without_ext):
     
     global speaker_color_map
-    global used_colors_pool
+    global used_colors
     global highlight_map 
     
     # Reset maps and shuffle color pool for unique assignment per file run
     speaker_color_map = {}
     highlight_map = {} 
-    used_colors_pool = list(MASTER_COLOR_POOL)
-    random.shuffle(used_colors_pool)
+    used_colors_rgb = [RGBColor(r, g, b) for r, g, b in FONT_COLORS_RGB_150]
+    random.shuffle(used_colors_rgb)
+    used_colors = used_colors_rgb 
     
     original_document = Document(io.BytesIO(uploaded_file.getvalue()))
     raw_paragraphs = [p for p in original_document.paragraphs]
     
     document = Document()
     
-    # --- A. Set Main Title (Size 20, 2 Blank Lines) ---
+    # --- A. Build Header Structure ---
     title_text_raw = file_name_without_ext.upper()
     title_text = title_text_raw.replace("CONVERTED_", "").replace("FORMATTED_", "").replace("_EDIT", "").replace(" (GỐC)", "").strip()
     
+    # 1. Title Paragraph (Size 20)
     title_paragraph = document.add_paragraph(title_text)
     title_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
     title_paragraph.paragraph_format.space_before = Pt(0)
@@ -264,7 +259,7 @@ def process_docx(uploaded_file, file_name_without_ext):
     title_run.font.size = Pt(20) 
     title_run.bold = True
     
-    # 2. Collect unique speakers (must happen here before adding the speaker list to the document)
+    # 2. Collect and Add Speaker List (Size 12)
     unique_speakers_ordered = []
     seen_speakers = set()
     
@@ -275,12 +270,10 @@ def process_docx(uploaded_file, file_name_without_ext):
              
         for match in SPEAKER_REGEX_DELIMITER.finditer(text):
             speaker_name = match.group(1).strip()
-            # Lọc tên người nói giả
             if speaker_name.upper() not in NON_SPEAKER_PHRASES and speaker_name not in seen_speakers:
                 seen_speakers.add(speaker_name)
                 unique_speakers_ordered.append(speaker_name)
             
-    # 3. Add Speaker List (Size 12)
     if unique_speakers_ordered:
         speaker_list_text = "VAI: " + ", ".join(unique_speakers_ordered) 
         speaker_list_paragraph = document.add_paragraph(speaker_list_text)
@@ -293,13 +286,13 @@ def process_docx(uploaded_file, file_name_without_ext):
         speaker_list_paragraph.paragraph_format.space_after = Pt(6) 
         speaker_list_paragraph.paragraph_format.space_before = Pt(0)
     
-    # Add 2 blank lines after the list/title
+    # 3. Add 2 blank lines
     document.add_paragraph().paragraph_format.space_after = Pt(0)
     document.add_paragraph().paragraph_format.space_after = Pt(0)
     
     start_index_for_general_format = len(document.paragraphs)
 
-    # --- B. Process raw paragraphs ---
+    # --- B. Process Dialogue Content ---
     
     for paragraph in raw_paragraphs:
         text = paragraph.text.strip()
@@ -309,27 +302,26 @@ def process_docx(uploaded_file, file_name_without_ext):
         if text.lower().startswith("srt conversion") or text.lower().startswith("converted_"):
             continue 
             
-        # B.1 Remove SRT Line Numbers
+        # Remove Line Numbers
         if re.fullmatch(r"^\s*\d+\s*$", text):
             continue 
             
-        # B.2 Timecode (Spacing After 6pt)
+        # Timecode
         if TIMECODE_REGEX.match(text):
             new_paragraph = document.add_paragraph(text)
             for run in new_paragraph.runs:
                 run.font.bold = True
                 run.font.name = 'Times New Roman' 
                 run.font.size = Pt(12) 
-            new_paragraph.paragraph_format.space_after = Pt(6) 
+            new_paragraph.paragraph_format.space_after = Pt(6) # 6pt After Timecode
             new_paragraph.paragraph_format.space_before = Pt(0) 
             
-        # B.3 Dialogue Content 
+        # Dialogue Content 
         else:
             format_and_split_dialogue(document, text)
             
-    # C. Apply General Font/Size and Spacing (Global settings)
+    # C. Apply Global Formatting (1.5 Lines)
     for paragraph in document.paragraphs[start_index_for_general_format:]:
-        # Apply 1.5 Lines Spacing
         paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE 
         paragraph.paragraph_format.space_before = Pt(0)
         paragraph.paragraph_format.space_after = Pt(0)
@@ -345,7 +337,8 @@ def process_docx(uploaded_file, file_name_without_ext):
     
     return modified_file
 
-# --- File Naming FIX ---
+# --- File Naming and Streamlit UI (English Version) ---
+
 def clean_file_name_for_output(original_filename):
     """Strips unwanted prefixes/suffixes and adds '_edit'."""
     name_without_ext = os.path.splitext(original_filename)[0]
@@ -357,8 +350,6 @@ def clean_file_name_for_output(original_filename):
          cleaned_name = cleaned_name[:-5].strip()
 
     return f"{cleaned_name}_edit.docx"
-
-# --- STREAMLIT INTERFACE ---
 
 st.set_page_config(page_title="Automatic Word Script Editor", layout="wide")
 
