@@ -4,12 +4,13 @@ from docx.shared import Pt, RGBColor, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.text import WD_LINE_SPACING
 from docx.enum.text import WD_TAB_ALIGNMENT
+from docx.enum.text import WD_COLOR_INDEX # Cần thiết cho Highlight
 import io
 import os
 import re
 import random
 
-# --- Helper Functions and Constants (Giữ nguyên) ---
+# --- Helper Functions and Constants ---
 
 def generate_vibrant_rgb_colors(count=150):
     """Generates a list of highly saturated, distinct RGB colors."""
@@ -38,6 +39,10 @@ FONT_COLORS_RGB_150 = generate_vibrant_rgb_colors(150)
 speaker_color_map = {}
 used_colors = []
 
+# FIX: Tạo danh sách Highlight an toàn và luân phiên
+HIGHLIGHT_CYCLE = [WD_COLOR_INDEX.YELLOW, WD_COLOR_INDEX.TURQUOISE]
+highlight_map = {} # Lưu trữ màu highlight cho mỗi speaker
+
 def get_speaker_color(speaker_name):
     global used_colors
     global speaker_color_map
@@ -51,12 +56,12 @@ def get_speaker_color(speaker_name):
             
         speaker_color_map[speaker_name] = color_object
         
+        # FIX: Gán màu Highlight luân phiên cho speaker mới
+        # Dùng vị trí index tiếp theo của speaker để chọn màu từ cycle
+        speaker_id = len(speaker_color_map)
+        highlight_map[speaker_name] = HIGHLIGHT_CYCLE[speaker_id % len(HIGHLIGHT_CYCLE)]
+        
     return speaker_color_map[speaker_name]
-
-# Regexes remain the same
-SPEAKER_REGEX_DELIMITER = re.compile(r"([A-Z][a-z\s&]+):\s*", re.IGNORECASE)
-TIMECODE_REGEX = re.compile(r"^\d{2}:\d{2}:\d{2},\d{3}\s+-->\s+\d{2}:\d{2}:\d{2},\d{3}$")
-HTML_CONTENT_REGEX = re.compile(r"((?:</?[ibu]>)+)(.*?)(?:</?[ibu]>)+", re.IGNORECASE | re.DOTALL)
 
 # FIX: Danh sách các cụm từ KHÔNG phải là tên người nói
 NON_SPEAKER_PHRASES = {
@@ -67,10 +72,16 @@ NON_SPEAKER_PHRASES = {
     "WILL RED THRIVE OR WILL RED BE DEAD", "BUT REMEMBER", "THE RESULTS ARE IN", 
     "WE CHALLENGED", "I THINK", "IN THEIR DEFENSE", "THE PEAK OF HIS LIFE WAS DOING THE SPACETHING",
     "THE ROCKETS ARE BIGGER", "THE DISTANCE SHOULD BE FURTHER", "GET CRAFTY", "THAT WAS SO SICK",
-    "OUT OF 100 CONTESTANTS", "THE FIRST ROUND IS BRUTAL", "YOU KNOW WHICH END GOES"
+    "OUT OF 100 CONTESTANTS", "THE FIRST ROUND IS BRUTAL", "YOU KNOW WHICH END GOES",
+    "THE GAME IS ON", "THAT'S A GOOD THROW", "HE'S GOING FOR IT", "WE GOT THIS",
+    "LAUNCH", "OH NO", "OH", "AH", "YEP", "WAIT"
 }
 
-# FIX: Cập nhật hàm này với thông số Spacing mới
+# Regexes remain the same
+SPEAKER_REGEX_DELIMITER = re.compile(r"([A-Z][a-z\s&]+):\s*", re.IGNORECASE)
+TIMECODE_REGEX = re.compile(r"^\d{2}:\d{2}:\d{2},\d{3}\s+-->\s+\d{2}:\d{2}:\d{2},\d{3}$")
+HTML_CONTENT_REGEX = re.compile(r"((?:</?[ibu]>)+)(.*?)(?:</?[ibu]>)+", re.IGNORECASE | re.DOTALL)
+
 def set_all_text_formatting(doc, start_index=0):
     """Áp dụng Times New Roman 12pt và định dạng dãn đoạn chung cho nội dung chính."""
     for i, paragraph in enumerate(doc.paragraphs):
@@ -81,10 +92,9 @@ def set_all_text_formatting(doc, start_index=0):
             run.font.name = 'Times New Roman'
             run.font.size = Pt(12) 
         
-        # FIX: ÁP DỤNG THÔNG SỐ MỚI
-        paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE # 1.5 Lines
-        paragraph.paragraph_format.space_before = Pt(0) # 0 pt Before
-        paragraph.paragraph_format.space_after = Pt(0) # 0 pt After (cho các đoạn nội dung)
+        paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
+        paragraph.paragraph_format.space_before = Pt(0)
+        paragraph.paragraph_format.space_after = Pt(6)
 
 def apply_html_formatting_to_run(paragraph, current_text):
     """Thêm nội dung văn bản, xử lý các thẻ HTML <i>, <b>, <u>."""
@@ -133,7 +143,7 @@ def format_and_split_dialogue(document, text):
         
         new_paragraph.add_run('\t') # Luôn chỉ dùng 1 Tab cho nội dung tiếp tục
         
-        # FIX: Dãn đoạn sau là 0pt
+        # BỎ DÒNG TRẮNG SAU KHI XỬ LÝ (Áp dụng Pt(0))
         new_paragraph.paragraph_format.space_after = Pt(0) 
         new_paragraph.paragraph_format.space_before = Pt(0)
         
@@ -156,7 +166,7 @@ def format_and_split_dialogue(document, text):
         continuation_paragraph.paragraph_format.tab_stops.add_tab_stop(TAB_STOP_POSITION, WD_TAB_ALIGNMENT.LEFT)
         
         continuation_paragraph.add_run('\t') # Luôn dùng 1 Tab cho continuation
-        continuation_paragraph.paragraph_format.space_after = Pt(0) # FIX: Dãn đoạn sau là 0pt
+        continuation_paragraph.paragraph_format.space_after = Pt(0) # BỎ DÒNG TRẮNG SAU KHI XỬ LÝ
         continuation_paragraph.paragraph_format.space_before = Pt(0)
         apply_html_formatting_to_run(continuation_paragraph, leading_content)
     
@@ -209,6 +219,9 @@ def format_and_split_dialogue(document, text):
         run_speaker.font.bold = True
         run_speaker.font.color.rgb = font_color_object 
         
+        # FIX LÔ-GIC TÔ MÀU KẾT HỢP
+        run_speaker.font.highlight_color = highlight_map[speaker_name] # Áp dụng màu Highlight luân phiên
+        
         # 2. Xử lý Tab Linh hoạt (1 Tab hoặc 2 Tab)
         if len(speaker_full) > 10:
              new_paragraph.add_run('\t\t') 
@@ -219,7 +232,7 @@ def format_and_split_dialogue(document, text):
         if content:
             apply_html_formatting_to_run(new_paragraph, content)
 
-        # FIX: Dãn đoạn sau là 0pt
+        # BỎ DÒNG TRẮNG SAU KHI XỬ LÝ
         new_paragraph.paragraph_format.space_after = Pt(0)
         new_paragraph.paragraph_format.space_before = Pt(0)
         
@@ -231,7 +244,9 @@ def process_docx(uploaded_file, file_name_without_ext):
     
     global speaker_color_map
     global used_colors
+    global highlight_map # Đảm bảo reset highlight map
     speaker_color_map = {}
+    highlight_map = {} 
     used_colors = [RGBColor(r, g, b) for r, g, b in FONT_COLORS_RGB_150]
     random.shuffle(used_colors)
     
@@ -241,8 +256,6 @@ def process_docx(uploaded_file, file_name_without_ext):
     document = Document()
     
     # --- A. Set Main Title (FIX: Size 20, 2 Dòng trắng sau) ---
-    
-    # 1. Làm sạch tên file để làm tiêu đề
     title_text_raw = file_name_without_ext.upper()
     title_text = title_text_raw.replace("CONVERTED_", "").replace("FORMATTED_", "").replace("_EDIT", "").replace(" (GỐC)", "").strip()
     
@@ -253,7 +266,7 @@ def process_docx(uploaded_file, file_name_without_ext):
     
     title_run = title_paragraph.runs[0]
     title_run.font.name = 'Times New Roman'
-    title_run.font.size = Pt(20) # FIX: Size 20
+    title_run.font.size = Pt(20) 
     title_run.bold = True
     
     # 2. Thu thập tất cả tên người nói duy nhất
@@ -262,7 +275,6 @@ def process_docx(uploaded_file, file_name_without_ext):
     
     for paragraph in raw_paragraphs:
         text = paragraph.text
-        # FIX: BỎ dòng "SRT Conversion:..." khỏi quá trình lọc người nói
         if text.lower().startswith("srt conversion") or text.lower().startswith("converted_"):
              continue 
              
@@ -278,13 +290,11 @@ def process_docx(uploaded_file, file_name_without_ext):
         speaker_list_text = "VAI: " + ", ".join(unique_speakers_ordered) 
         speaker_list_paragraph = document.add_paragraph(speaker_list_text)
         
-        # Áp dụng định dạng Size 12, không in đậm
         for run in speaker_list_paragraph.runs:
             run.font.name = 'Times New Roman'
-            run.font.size = Pt(12) # FIX: Size 12
+            run.font.size = Pt(12) 
             run.font.bold = False
         
-        # Dãn đoạn 6pt sau dòng liệt kê (Duy trì 6pt sau dòng này)
         speaker_list_paragraph.paragraph_format.space_after = Pt(6) 
         speaker_list_paragraph.paragraph_format.space_before = Pt(0)
     
@@ -292,7 +302,6 @@ def process_docx(uploaded_file, file_name_without_ext):
     document.add_paragraph().paragraph_format.space_after = Pt(0)
     document.add_paragraph().paragraph_format.space_after = Pt(0)
     
-    # Chỉ số đoạn bắt đầu áp dụng set_all_text_formatting
     start_index_for_general_format = len(document.paragraphs)
 
     # --- B. Process raw paragraphs ---
@@ -302,7 +311,6 @@ def process_docx(uploaded_file, file_name_without_ext):
         if not text:
             continue
         
-        # FIX: BỎ dòng "SRT Conversion:..." hoàn toàn
         if text.lower().startswith("srt conversion") or text.lower().startswith("converted_"):
             continue 
             
@@ -310,28 +318,22 @@ def process_docx(uploaded_file, file_name_without_ext):
         if re.fullmatch(r"^\s*\d+\s*$", text):
             continue 
             
-        # B.2 Timecode (Có dãn đoạn 0pt trước và sau, sau đó set_all_text_formatting sẽ set 1.5 lines)
+        # B.2 Timecode (Có dãn đoạn 6pt sau Timecode)
         if TIMECODE_REGEX.match(text):
             new_paragraph = document.add_paragraph(text)
             for run in new_paragraph.runs:
                 run.font.bold = True
-                run.font.name = 'Times New Roman' # FIX: Đặt Font cho Timecode
-                run.font.size = Pt(12) # FIX: Size 12
-            new_paragraph.paragraph_format.space_after = Pt(0) # FIX: 0pt After
-            new_paragraph.paragraph_format.space_before = Pt(0) # FIX: 0pt Before
+                run.font.name = 'Times New Roman' 
+                run.font.size = Pt(12) 
+            new_paragraph.paragraph_format.space_after = Pt(6) 
+            new_paragraph.paragraph_format.space_before = Pt(0) 
             
-        # B.3 Dialogue Content (Có dãn đoạn 0pt trước và sau)
+        # B.3 Dialogue Content 
         else:
             format_and_split_dialogue(document, text)
             
     # C. Apply General Font/Size and Spacing (Global settings)
-    # FIX: Áp dụng Times New Roman 12pt và 1.5 lines (0pt After, 0pt Before) cho NỘI DUNG CHÍNH
     for paragraph in document.paragraphs[start_index_for_general_format:]:
-        # Áp dụng 1.5 lines cho nội dung đối thoại
-        paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE
-        paragraph.paragraph_format.space_before = Pt(0)
-        paragraph.paragraph_format.space_after = Pt(0)
-        
         for run in paragraph.runs:
             run.font.name = 'Times New Roman'
             run.font.size = Pt(12)
@@ -381,12 +383,10 @@ if uploaded_file is not None:
             try:
                 modified_file_io = process_docx(uploaded_file, file_name_without_ext)
                 
-                # Sử dụng hàm làm sạch tên file cho output
                 new_filename = clean_file_name_for_output(original_filename)
 
                 st.success("✅ Định dạng hoàn tất! Bạn có thể tải file về.")
                 
-                # Nút tải file
                 st.download_button(
                     label="3. Tải File Word Đã Định Dạng Về",
                     data=modified_file_io,
