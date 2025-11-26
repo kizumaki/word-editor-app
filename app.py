@@ -9,7 +9,7 @@ import os
 import re
 import random
 
-# --- Helper Functions and Constants ---
+# --- Helper Functions and Constants (Giữ nguyên) ---
 
 def generate_vibrant_rgb_colors(count=150):
     """Generates a list of highly saturated, distinct RGB colors."""
@@ -58,20 +58,19 @@ SPEAKER_REGEX_DELIMITER = re.compile(r"([A-Z][a-z\s&]+):\s*", re.IGNORECASE)
 TIMECODE_REGEX = re.compile(r"^\d{2}:\d{2}:\d{2},\d{3}\s+-->\s+\d{2}:\d{2}:\d{2},\d{3}$")
 HTML_CONTENT_REGEX = re.compile(r"((?:</?[ibu]>)+)(.*?)(?:</?[ibu]>)+", re.IGNORECASE | re.DOTALL)
 
-# FIX: Danh sách các cụm từ KHÔNG phải là tên người nói (Đã tinh gọn để chỉ lọc các cụm từ mô tả hành động/sự kiện)
+# FIX: Danh sách các cụm từ KHÔNG phải là tên người nói
 NON_SPEAKER_PHRASES = {
     "AND REMEMBER", "OFFICIAL DISTANCE", "GOOD NEWS FOR THEIR TEAMMATES", 
     "LL BE HONEST", "FIRST AND FOREMOST", "I SAID", "THE ONLY THING LEFT TO SETTLE", 
-    "QUESTION IS", "FINALISTS", "TEAM PURPLE", "TEAM GREEN", 
+    "QUESTION IS", "FINALISTS", "CONTESTANTS", "TEAM PURPLE", "TEAM GREEN", 
     "TEAM PINK", "DUDE PERFECT", "TITLE VO", "WHISPERS", "SRT CONVERSION", 
     "WILL RED THRIVE OR WILL RED BE DEAD", "BUT REMEMBER", "THE RESULTS ARE IN", 
     "WE CHALLENGED", "I THINK", "IN THEIR DEFENSE", "THE PEAK OF HIS LIFE WAS DOING THE SPACETHING",
-    "THE ROCKETS ARE BIGGER", "THE DISTANCE SHOULD BE FURTHER", "GET CRAFTY", 
-    "OUT OF 100 CONTESTANTS", "THE FIRST ROUND IS BRUTAL", "YOU KNOW WHICH END GOES",
-    "THE GAME IS ON", "THAT'S A GOOD THROW", "HE'S GOING FOR IT", "WE GOT THIS",
-    "LAUNCH", "OH NO", "OH", "AH", "YEP", "WAIT" # Lọc các từ cảm thán và hành động ngắn
+    "THE ROCKETS ARE BIGGER", "THE DISTANCE SHOULD BE FURTHER", "GET CRAFTY", "THAT WAS SO SICK",
+    "OUT OF 100 CONTESTANTS", "THE FIRST ROUND IS BRUTAL", "YOU KNOW WHICH END GOES"
 }
 
+# FIX: Cập nhật hàm này với thông số Spacing mới
 def set_all_text_formatting(doc, start_index=0):
     """Áp dụng Times New Roman 12pt và định dạng dãn đoạn chung cho nội dung chính."""
     for i, paragraph in enumerate(doc.paragraphs):
@@ -82,9 +81,10 @@ def set_all_text_formatting(doc, start_index=0):
             run.font.name = 'Times New Roman'
             run.font.size = Pt(12) 
         
-        paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
-        paragraph.paragraph_format.space_before = Pt(0)
-        paragraph.paragraph_format.space_after = Pt(6)
+        # FIX: ÁP DỤNG THÔNG SỐ MỚI
+        paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE # 1.5 Lines
+        paragraph.paragraph_format.space_before = Pt(0) # 0 pt Before
+        paragraph.paragraph_format.space_after = Pt(0) # 0 pt After (cho các đoạn nội dung)
 
 def apply_html_formatting_to_run(paragraph, current_text):
     """Thêm nội dung văn bản, xử lý các thẻ HTML <i>, <b>, <u>."""
@@ -133,7 +133,7 @@ def format_and_split_dialogue(document, text):
         
         new_paragraph.add_run('\t') # Luôn chỉ dùng 1 Tab cho nội dung tiếp tục
         
-        # BỎ DÒNG TRẮNG SAU KHI XỬ LÝ (Áp dụng Pt(0))
+        # FIX: Dãn đoạn sau là 0pt
         new_paragraph.paragraph_format.space_after = Pt(0) 
         new_paragraph.paragraph_format.space_before = Pt(0)
         
@@ -156,7 +156,7 @@ def format_and_split_dialogue(document, text):
         continuation_paragraph.paragraph_format.tab_stops.add_tab_stop(TAB_STOP_POSITION, WD_TAB_ALIGNMENT.LEFT)
         
         continuation_paragraph.add_run('\t') # Luôn dùng 1 Tab cho continuation
-        continuation_paragraph.paragraph_format.space_after = Pt(0) # BỎ DÒNG TRẮNG SAU KHI XỬ LÝ
+        continuation_paragraph.paragraph_format.space_after = Pt(0) # FIX: Dãn đoạn sau là 0pt
         continuation_paragraph.paragraph_format.space_before = Pt(0)
         apply_html_formatting_to_run(continuation_paragraph, leading_content)
     
@@ -169,7 +169,7 @@ def format_and_split_dialogue(document, text):
         speaker_name = match.group(1).strip()
         start, end = match.span()
         
-        # FIX: Lọc tên người nói giả
+        # FIX LỌC: Kiểm tra tên người nói giả
         if speaker_name.upper() in NON_SPEAKER_PHRASES:
             # Nếu là cụm từ mô tả, xử lý nó như nội dung tiếp tục
             content_block = text[start:] 
@@ -219,7 +219,7 @@ def format_and_split_dialogue(document, text):
         if content:
             apply_html_formatting_to_run(new_paragraph, content)
 
-        # BỎ DÒNG TRẮNG SAU KHI XỬ LÝ
+        # FIX: Dãn đoạn sau là 0pt
         new_paragraph.paragraph_format.space_after = Pt(0)
         new_paragraph.paragraph_format.space_before = Pt(0)
         
@@ -284,7 +284,7 @@ def process_docx(uploaded_file, file_name_without_ext):
             run.font.size = Pt(12) # FIX: Size 12
             run.font.bold = False
         
-        # Dãn đoạn 6pt sau dòng liệt kê
+        # Dãn đoạn 6pt sau dòng liệt kê (Duy trì 6pt sau dòng này)
         speaker_list_paragraph.paragraph_format.space_after = Pt(6) 
         speaker_list_paragraph.paragraph_format.space_before = Pt(0)
     
@@ -310,23 +310,28 @@ def process_docx(uploaded_file, file_name_without_ext):
         if re.fullmatch(r"^\s*\d+\s*$", text):
             continue 
             
-        # B.2 Timecode (Có dãn đoạn 6pt sau Timecode)
+        # B.2 Timecode (Có dãn đoạn 0pt trước và sau, sau đó set_all_text_formatting sẽ set 1.5 lines)
         if TIMECODE_REGEX.match(text):
             new_paragraph = document.add_paragraph(text)
             for run in new_paragraph.runs:
                 run.font.bold = True
                 run.font.name = 'Times New Roman' # FIX: Đặt Font cho Timecode
                 run.font.size = Pt(12) # FIX: Size 12
-            new_paragraph.paragraph_format.space_after = Pt(6) # Dãn đoạn 6pt sau timecode
-            new_paragraph.paragraph_format.space_before = Pt(0) 
+            new_paragraph.paragraph_format.space_after = Pt(0) # FIX: 0pt After
+            new_paragraph.paragraph_format.space_before = Pt(0) # FIX: 0pt Before
             
-        # B.3 Dialogue Content (Không có dãn đoạn sau)
+        # B.3 Dialogue Content (Có dãn đoạn 0pt trước và sau)
         else:
             format_and_split_dialogue(document, text)
             
     # C. Apply General Font/Size and Spacing (Global settings)
-    # Áp dụng Times New Roman 12pt cho các đoạn content đã tạo
+    # FIX: Áp dụng Times New Roman 12pt và 1.5 lines (0pt After, 0pt Before) cho NỘI DUNG CHÍNH
     for paragraph in document.paragraphs[start_index_for_general_format:]:
+        # Áp dụng 1.5 lines cho nội dung đối thoại
+        paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE
+        paragraph.paragraph_format.space_before = Pt(0)
+        paragraph.paragraph_format.space_after = Pt(0)
+        
         for run in paragraph.runs:
             run.font.name = 'Times New Roman'
             run.font.size = Pt(12)
@@ -381,6 +386,7 @@ if uploaded_file is not None:
 
                 st.success("✅ Định dạng hoàn tất! Bạn có thể tải file về.")
                 
+                # Nút tải file
                 st.download_button(
                     label="3. Tải File Word Đã Định Dạng Về",
                     data=modified_file_io,
