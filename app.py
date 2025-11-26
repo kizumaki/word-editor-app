@@ -58,10 +58,22 @@ SPEAKER_REGEX_DELIMITER = re.compile(r"([A-Z][a-z\s&]+):\s*", re.IGNORECASE)
 TIMECODE_REGEX = re.compile(r"^\d{2}:\d{2}:\d{2},\d{3}\s+-->\s+\d{2}:\d{2}:\d{2},\d{3}$")
 HTML_CONTENT_REGEX = re.compile(r"((?:</?[ibu]>)+)(.*?)(?:</?[ibu]>)+", re.IGNORECASE | re.DOTALL)
 
+
+# FIX: Danh sách các cụm từ KHÔNG phải là tên người nói (Đã cập nhật thêm các cụm từ mới)
+NON_SPEAKER_PHRASES = {
+    "AND REMEMBER", "OFFICIAL DISTANCE", "GOOD NEWS FOR THEIR TEAMMATES", 
+    "LL BE HONEST", "FIRST AND FOREMOST", "I SAID", "THE ONLY THING LEFT TO SETTLE", 
+    "QUESTION IS", "FINALISTS", "CONTESTANTS", "TEAM PURPLE", "TEAM GREEN", 
+    "TEAM PINK", "DUDE PERFECT", "WOMAN VO", "BOY IN GREY HOODIE", "TITLE VO", 
+    "WHISPERS", "SRT CONVERSION", "WILL RED THRIVE OR WILL RED BE DEAD", 
+    "BUT REMEMBER", "THE RESULTS ARE IN" # Thêm các cụm từ mới thường gặp
+}
+
+
 def set_all_text_formatting(doc, start_index=0):
     """Áp dụng định dạng chung cho toàn bộ văn bản."""
     for i, paragraph in enumerate(doc.paragraphs):
-        if i < start_index: # Bỏ qua tiêu đề và danh sách người nói
+        if i < start_index:
             continue
             
         for run in paragraph.runs:
@@ -103,36 +115,9 @@ def format_and_split_dialogue(document, text):
     riêng biệt và áp dụng định dạng căn lề/Tab chính xác.
     """
     
-    # Tách văn bản thành các phần dựa trên sự xuất hiện của tên người nói
     parts = SPEAKER_REGEX_DELIMITER.split(text)
+    TAB_STOP_POSITION = Inches(1.0) 
     
-    # --- CÁC THIẾT LẬP CĂN LỀ CHUNG ---
-    TAB_STOP_POSITION = Inches(1.0) # Vị trí căn thẳng lời thoại
-    
-    # ---------------------------------------------
-    # CASE 1: NO SPEAKER FOUND (Continuation Line)
-    # ---------------------------------------------
-    if len(parts) == 1:
-        new_paragraph = document.add_paragraph()
-        
-        # Áp dụng cấu trúc Hanging Indent
-        new_paragraph.paragraph_format.left_indent = TAB_STOP_POSITION
-        new_paragraph.paragraph_format.first_line_indent = Inches(-1.0) 
-        new_paragraph.paragraph_format.tab_stops.add_tab_stop(TAB_STOP_POSITION, WD_TAB_ALIGNMENT.LEFT)
-        
-        new_paragraph.add_run('\t') # Luôn chỉ dùng 1 Tab cho nội dung tiếp tục
-        
-        # BỎ DÒNG TRẮNG SAU KHI XỬ LÝ (Áp dụng Pt(0))
-        new_paragraph.paragraph_format.space_after = Pt(0) 
-        new_paragraph.paragraph_format.space_before = Pt(0)
-        
-        apply_html_formatting_to_run(new_paragraph, text)
-        return
-    
-    # ---------------------------------------------
-    # CASE 2: ONE HOẶC NHIỀU SPEAKERS FOUND
-    # ---------------------------------------------
-
     # parts[0] là nội dung TRƯỚC người nói đầu tiên (thường là continuation)
     leading_content = parts[0].strip()
     if leading_content:
@@ -145,7 +130,7 @@ def format_and_split_dialogue(document, text):
         continuation_paragraph.paragraph_format.tab_stops.add_tab_stop(TAB_STOP_POSITION, WD_TAB_ALIGNMENT.LEFT)
         
         continuation_paragraph.add_run('\t') # Luôn dùng 1 Tab cho continuation
-        continuation_paragraph.paragraph_format.space_after = Pt(0) # BỎ DÒNG TRẮNG SAU KHI XỬ LÝ
+        continuation_paragraph.paragraph_format.space_after = Pt(0)
         continuation_paragraph.paragraph_format.space_before = Pt(0)
         apply_html_formatting_to_run(continuation_paragraph, leading_content)
     
@@ -154,10 +139,27 @@ def format_and_split_dialogue(document, text):
     speaker_matches = list(SPEAKER_REGEX_DELIMITER.finditer(text))
     
     for i, match in enumerate(speaker_matches):
-        speaker_full = match.group(0) # e.g., "Coby: "
-        speaker_name = match.group(1).strip() # e.g., "Coby"
+        speaker_full = match.group(0) 
+        speaker_name = match.group(1).strip()
         start, end = match.span()
         
+        # FIX: Lọc tên người nói giả
+        if speaker_name.upper() in NON_SPEAKER_PHRASES:
+            # Nếu là cụm từ mô tả, xử lý nó như nội dung tiếp tục
+            content_block = text[start:] # Lấy toàn bộ khối từ cụm từ trở đi
+            
+            continuation_paragraph = document.add_paragraph()
+            continuation_paragraph.paragraph_format.left_indent = TAB_STOP_POSITION
+            continuation_paragraph.paragraph_format.first_line_indent = Inches(-1.0)
+            continuation_paragraph.paragraph_format.tab_stops.add_tab_stop(TAB_STOP_POSITION, WD_TAB_ALIGNMENT.LEFT)
+            
+            # Thêm cụm từ mô tả/ghi chú và phần còn lại
+            continuation_paragraph.add_run('\t') 
+            apply_html_formatting_to_run(continuation_paragraph, content_block)
+            continuation_paragraph.paragraph_format.space_after = Pt(0)
+            continuation_paragraph.paragraph_format.space_before = Pt(0)
+            return # Thoát khỏi hàm nếu đã xử lý như một khối mô tả
+            
         # Xác định nội dung của người nói hiện tại
         if i + 1 < len(speaker_matches):
             next_match_start = speaker_matches[i+1].start()
@@ -182,7 +184,6 @@ def format_and_split_dialogue(document, text):
         run_speaker.font.color.rgb = font_color_object 
         
         # 2. Xử lý Tab Linh hoạt (1 Tab hoặc 2 Tab)
-        # Nếu tên người nói (đã bao gồm ": ") dài hơn 10 ký tự, cần 2 Tabs
         if len(speaker_full) > 10:
              new_paragraph.add_run('\t\t') 
         else:
@@ -229,19 +230,20 @@ def process_docx(uploaded_file, file_name_without_ext):
     title_run.font.size = Pt(20) # FIX: Size 20
     title_run.bold = True
     
-    # 2. Thu thập tất cả tên người nói duy nhất và theo thứ tự
+    # 2. Thu thập tất cả tên người nói duy nhất
     unique_speakers_ordered = []
     seen_speakers = set()
     
     for paragraph in raw_paragraphs:
         text = paragraph.text
-        # FIX: Loại bỏ dòng "SRT Conversion:..." khỏi quá trình lọc người nói
-        if text.lower().startswith("srt conversion"):
+        # FIX: BỎ dòng "SRT Conversion:..." khỏi quá trình lọc người nói
+        if text.lower().startswith("srt conversion") or text.lower().startswith("converted_"):
              continue 
              
         for match in SPEAKER_REGEX_DELIMITER.finditer(text):
             speaker_name = match.group(1).strip()
-            if speaker_name not in seen_speakers:
+            # FIX: Lọc tên người nói giả
+            if speaker_name.upper() not in NON_SPEAKER_PHRASES and speaker_name not in seen_speakers:
                 seen_speakers.add(speaker_name)
                 unique_speakers_ordered.append(speaker_name)
             
@@ -263,7 +265,7 @@ def process_docx(uploaded_file, file_name_without_ext):
     # Thêm 2 dòng trắng sau tiêu đề
     document.add_paragraph().paragraph_format.space_after = Pt(0)
     document.add_paragraph().paragraph_format.space_after = Pt(0)
-    
+
     # --- B. Process raw paragraphs ---
     
     for paragraph in raw_paragraphs:
@@ -272,7 +274,7 @@ def process_docx(uploaded_file, file_name_without_ext):
             continue
         
         # FIX: BỎ dòng "SRT Conversion:..." hoàn toàn
-        if text.lower().startswith("srt conversion"):
+        if text.lower().startswith("srt conversion") or text.lower().startswith("converted_"):
             continue 
             
         # B.1 Remove SRT Line Numbers
@@ -284,7 +286,7 @@ def process_docx(uploaded_file, file_name_without_ext):
             new_paragraph = document.add_paragraph(text)
             for run in new_paragraph.runs:
                 run.font.bold = True
-            new_paragraph.paragraph_format.space_after = Pt(6) # Dãn đoạn 6pt sau timecode
+            new_paragraph.paragraph_format.space_after = Pt(6) # FIX: Dãn đoạn 6pt sau timecode
             new_paragraph.paragraph_format.space_before = Pt(0) 
             
         # B.3 Dialogue Content (Không có dãn đoạn sau)
@@ -292,8 +294,9 @@ def process_docx(uploaded_file, file_name_without_ext):
             format_and_split_dialogue(document, text)
             
     # C. Apply General Font/Size and Spacing (Global settings)
-    # Index 3 là đoạn đầu tiên KHÔNG phải tiêu đề/list/dòng trắng
-    set_all_text_formatting(document, start_index=3) 
+    # Áp dụng cho phần nội dung (bắt đầu từ đoạn thứ 3 hoặc thứ 4)
+    start_index_for_general_format = len(document.paragraphs) - len([p for p in raw_paragraphs if p.text.strip() and not TIMECODE_REGEX.match(p.text.strip()) and not re.fullmatch(r"^\s*\d+\s*$", p.text.strip())])
+    set_all_text_formatting(document, start_index=start_index_for_general_format) 
     
     # Save the file
     modified_file = io.BytesIO()
