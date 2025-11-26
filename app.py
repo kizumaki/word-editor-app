@@ -223,21 +223,26 @@ def process_docx(uploaded_file, file_name_without_ext):
     
     title_run = title_paragraph.runs[0]
     title_run.font.name = 'Times New Roman'
-    title_run.font.size = Pt(60) # FIX: Gấp 3 lần (20pt * 3 = 60pt)
+    title_run.font.size = Pt(60) # FIX: Size 60
     title_run.bold = True
     
-    # 2. Thu thập tất cả tên người nói duy nhất
-    unique_speakers = set()
-    for paragraph in original_document.paragraphs:
+    # 2. Thu thập tất cả tên người nói duy nhất và theo thứ tự
+    unique_speakers_ordered = []
+    
+    # Sử dụng tập hợp (set) để lưu trữ tên đã thấy và duy trì thứ tự xuất hiện
+    seen_speakers = set()
+    
+    for paragraph in raw_paragraphs:
         text = paragraph.text
         for match in SPEAKER_REGEX_DELIMITER.finditer(text):
-            unique_speakers.add(match.group(1).strip())
+            speaker_name = match.group(1).strip()
+            if speaker_name not in seen_speakers:
+                seen_speakers.add(speaker_name)
+                unique_speakers_ordered.append(speaker_name)
             
-    sorted_speakers = sorted(list(unique_speakers))
-    
     # 3. Thêm Dòng liệt kê Tên người nói (Size 12, Normal)
-    if sorted_speakers:
-        speaker_list_text = "NGƯỜI NÓI: " + ", ".join(sorted_speakers)
+    if unique_speakers_ordered:
+        speaker_list_text = "NGƯỜI NÓI: " + ", ".join(unique_speakers_ordered)
         speaker_list_paragraph = document.add_paragraph(speaker_list_text)
         
         # Áp dụng định dạng Size 12, không in đậm
@@ -261,8 +266,8 @@ def process_docx(uploaded_file, file_name_without_ext):
         if not text:
             continue
         
-        # FIX: BỎ dòng "SRT Conversion:..." hoàn toàn
-        if text.lower().startswith("srt conversion:"):
+        # FIX: BỎ dòng "SRT Conversion:..." hoàn toàn (Bao gồm cả các biến thể)
+        if text.lower().startswith("srt conversion"):
             continue 
             
         # B.1 Remove SRT Line Numbers
