@@ -12,7 +12,6 @@ import random
 # --- Helper Functions and Constants (Giữ nguyên) ---
 
 def generate_vibrant_rgb_colors(count=150):
-    """Generates a list of highly saturated, distinct RGB colors."""
     colors = set()
     while len(colors) < count:
         h = random.random()
@@ -109,14 +108,14 @@ def format_and_split_dialogue(document, text):
     if len(parts) == 1:
         new_paragraph = document.add_paragraph()
         
-        # Áp dụng cấu trúc Hanging Indent
+        # FIX: Áp dụng Lề Trái và Tab Stop (Không dùng Hanging Indent)
         new_paragraph.paragraph_format.left_indent = Inches(1.0)
-        new_paragraph.paragraph_format.first_line_indent = Inches(-1.0)
+        new_paragraph.paragraph_format.first_line_indent = None
         new_paragraph.paragraph_format.tab_stops.add_tab_stop(Inches(1.0), WD_TAB_ALIGNMENT.LEFT)
         
         new_paragraph.add_run('\t') # Luôn chỉ dùng 1 Tab cho nội dung tiếp tục
         
-        # BỎ DÒNG TRẮNG SAU KHI XỬ LÝ
+        # BỎ DÒNG TRẮNG SAU KHI XỬ LÝ (Áp dụng Pt(0))
         new_paragraph.paragraph_format.space_after = Pt(0) 
         new_paragraph.paragraph_format.space_before = Pt(0)
         
@@ -132,11 +131,14 @@ def format_and_split_dialogue(document, text):
     if leading_content:
         # Tạo một đoạn continuation cho nội dung dẫn đầu này
         continuation_paragraph = document.add_paragraph()
+        
+        # FIX: Áp dụng Lề Trái và Tab Stop
         continuation_paragraph.paragraph_format.left_indent = Inches(1.0)
-        continuation_paragraph.paragraph_format.first_line_indent = Inches(-1.0)
+        continuation_paragraph.paragraph_format.first_line_indent = None 
         continuation_paragraph.paragraph_format.tab_stops.add_tab_stop(Inches(1.0), WD_TAB_ALIGNMENT.LEFT)
+        
         continuation_paragraph.add_run('\t') # Luôn dùng 1 Tab cho continuation
-        continuation_paragraph.paragraph_format.space_after = Pt(0) # BỎ DÒNG TRẮNG SAU KHI XỬ LÝ
+        continuation_paragraph.paragraph_format.space_after = Pt(0) 
         continuation_paragraph.paragraph_format.space_before = Pt(0)
         apply_html_formatting_to_run(continuation_paragraph, leading_content)
     
@@ -159,9 +161,11 @@ def format_and_split_dialogue(document, text):
 
         new_paragraph = document.add_paragraph()
         
-        # Áp dụng cấu trúc Hanging Indent cho tất cả các dòng đối thoại
-        new_paragraph.paragraph_format.left_indent = Inches(1.0)
-        new_paragraph.paragraph_format.first_line_indent = Inches(-1.0)
+        # FIX CĂN LỀ: Bỏ Hanging Indent, chỉ dùng Left Indent (0.0 inch)
+        new_paragraph.paragraph_format.left_indent = Inches(0.0)
+        new_paragraph.paragraph_format.first_line_indent = None
+        
+        # Đặt Tab Stop ở vị trí 1.0 inch
         new_paragraph.paragraph_format.tab_stops.add_tab_stop(Inches(1.0), WD_TAB_ALIGNMENT.LEFT)
         
         # 1. Run cho tên người nói (Bold và Color)
@@ -170,7 +174,7 @@ def format_and_split_dialogue(document, text):
         run_speaker.font.bold = True
         run_speaker.font.color.rgb = font_color_object 
         
-        # 2. Insert 1 Tab (FIX: LUÔN CHỈ 1 TAB để căn thẳng hàng)
+        # 2. Insert 1 Tab (FIX: LUÔN CHỈ 1 TAB ĐỂ CĂN THẲNG HÀNG)
         new_paragraph.add_run('\t') 
 
         # 3. Thêm nội dung
