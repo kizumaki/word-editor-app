@@ -17,8 +17,8 @@ def generate_vibrant_rgb_colors(count=150):
     colors = set()
     while len(colors) < count:
         h = random.random()
-        s = 0.9 # Saturation cao
-        v = 0.6 # Value/Brightness TRUNG BÌNH (FIX: Để màu chữ đủ tối, tăng tương phản)
+        s = 0.9 
+        v = 0.6 # FIX: Value/Brightness TRUNG BÌNH (Để màu chữ đủ tối)
         
         if s == 0.0: r = g = b = v
         else:
@@ -31,7 +31,7 @@ def generate_vibrant_rgb_colors(count=150):
             else: r, g, b = v, p, q
         
         r, g, b = int(r * 255), int(g * 255), int(b * 255)
-        # FIX: Chỉ chấp nhận các màu tối/trung bình để đảm bảo độ tương phản trên nền trắng/sáng
+        # FIX: Chỉ chấp nhận các màu tối/trung bình để đảm bảo độ tương phản trên nền sáng
         if r > 200 and g > 200 and b > 200: continue 
         colors.add((r, g, b))
     
@@ -42,10 +42,16 @@ speaker_color_map = {}
 highlight_map = {} 
 used_colors = []
 
-# FIX: Tăng số lượng màu Highlight an toàn (Index)
+# FIX: THAY THẾ TÊN HẰNG SỐ BẰNG GIÁ TRỊ SỐ NGUYÊN (ỔN ĐỊNH NHẤT)
 HIGHLIGHT_CYCLE = [
-    WD_COLOR_INDEX.YELLOW, WD_COLOR_INDEX.TURQUOISE, WD_COLOR_INDEX.PINK, WD_COLOR_INDEX.BRIGHT_GREEN,
-    WD_COLOR_INDEX.PALE_BLUE, WD_COLOR_INDEX.LIGHT_ORANGE, WD_COLOR_INDEX.TEAL, WD_COLOR_INDEX.VIOLET
+    6,  # YELLOW
+    3,  # TURQUOISE
+    14, # PINK
+    11, # BRIGHT_GREEN
+    1,  # PALE_BLUE
+    5,  # LIGHT_ORANGE
+    15, # TEAL
+    13  # VIOLET
 ] 
 
 def get_speaker_color(speaker_name):
@@ -97,10 +103,9 @@ def set_all_text_formatting(doc, start_index=0):
             run.font.name = 'Times New Roman'
             run.font.size = Pt(12) 
         
-        # FIX Dãn dòng 1.5 Lines, 0pt Before/After
-        paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE 
+        paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
         paragraph.paragraph_format.space_before = Pt(0)
-        paragraph.paragraph_format.space_after = Pt(0) 
+        paragraph.paragraph_format.space_after = Pt(6)
 
 def apply_html_formatting_to_run(paragraph, current_text):
     """Thêm nội dung văn bản, xử lý các thẻ HTML <i>, <b>, <u>."""
