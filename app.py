@@ -4,7 +4,7 @@ from docx.shared import Pt, RGBColor, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.text import WD_LINE_SPACING
 from docx.enum.text import WD_TAB_ALIGNMENT
-from docx.enum.text import WD_COLOR_INDEX # Cần thiết cho Highlight
+from docx.enum.text import WD_COLOR_INDEX
 import io
 import os
 import re
@@ -38,14 +38,13 @@ def generate_vibrant_rgb_colors(count=150):
 FONT_COLORS_RGB_150 = generate_vibrant_rgb_colors(150)
 speaker_color_map = {}
 used_colors = []
-
-# FIX: Tạo danh sách Highlight an toàn và luân phiên
-HIGHLIGHT_CYCLE = [WD_COLOR_INDEX.YELLOW, WD_COLOR_INDEX.TURQUOISE]
-highlight_map = {} # Lưu trữ màu highlight cho mỗi speaker
+highlight_map = {} # FIX: Thêm map cho Highlight
+HIGHLIGHT_CYCLE = [WD_COLOR_INDEX.YELLOW, WD_COLOR_INDEX.TURQUOISE, WD_COLOR_INDEX.PINK, WD_COLOR_INDEX.BRIGHT_GREEN] # 4 màu nền an toàn
 
 def get_speaker_color(speaker_name):
     global used_colors
     global speaker_color_map
+    global highlight_map
     
     if speaker_name not in speaker_color_map:
         if used_colors:
@@ -57,13 +56,12 @@ def get_speaker_color(speaker_name):
         speaker_color_map[speaker_name] = color_object
         
         # FIX: Gán màu Highlight luân phiên cho speaker mới
-        # Dùng vị trí index tiếp theo của speaker để chọn màu từ cycle
         speaker_id = len(speaker_color_map)
         highlight_map[speaker_name] = HIGHLIGHT_CYCLE[speaker_id % len(HIGHLIGHT_CYCLE)]
         
     return speaker_color_map[speaker_name]
 
-# FIX: Danh sách các cụm từ KHÔNG phải là tên người nói
+# FIX: Danh sách các cụm từ KHÔNG phải là tên người nói (Đã tinh lọc lần cuối)
 NON_SPEAKER_PHRASES = {
     "AND REMEMBER", "OFFICIAL DISTANCE", "GOOD NEWS FOR THEIR TEAMMATES", 
     "LL BE HONEST", "FIRST AND FOREMOST", "I SAID", "THE ONLY THING LEFT TO SETTLE", 
@@ -74,7 +72,7 @@ NON_SPEAKER_PHRASES = {
     "THE ROCKETS ARE BIGGER", "THE DISTANCE SHOULD BE FURTHER", "GET CRAFTY", "THAT WAS SO SICK",
     "OUT OF 100 CONTESTANTS", "THE FIRST ROUND IS BRUTAL", "YOU KNOW WHICH END GOES",
     "THE GAME IS ON", "THAT'S A GOOD THROW", "HE'S GOING FOR IT", "WE GOT THIS",
-    "LAUNCH", "OH NO", "OH", "AH", "YEP", "WAIT"
+    "LAUNCH", "OH NO", "OH", "AH", "YEP", "WAIT", "YEAH", "WOO", "OKAY", "YES" # Loại bỏ các từ cảm thán và hành động ngắn
 }
 
 # Regexes remain the same
@@ -219,8 +217,8 @@ def format_and_split_dialogue(document, text):
         run_speaker.font.bold = True
         run_speaker.font.color.rgb = font_color_object 
         
-        # FIX LÔ-GIC TÔ MÀU KẾT HỢP
-        run_speaker.font.highlight_color = highlight_map[speaker_name] # Áp dụng màu Highlight luân phiên
+        # FIX TÔ MÀU KẾT HỢP
+        run_speaker.font.highlight_color = highlight_map[speaker_name] 
         
         # 2. Xử lý Tab Linh hoạt (1 Tab hoặc 2 Tab)
         if len(speaker_full) > 10:
@@ -244,7 +242,7 @@ def process_docx(uploaded_file, file_name_without_ext):
     
     global speaker_color_map
     global used_colors
-    global highlight_map # Đảm bảo reset highlight map
+    global highlight_map 
     speaker_color_map = {}
     highlight_map = {} 
     used_colors = [RGBColor(r, g, b) for r, g, b in FONT_COLORS_RGB_150]
