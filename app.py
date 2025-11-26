@@ -12,7 +12,6 @@ import random
 # --- Helper Functions and Constants (Giữ nguyên) ---
 
 def generate_vibrant_rgb_colors(count=150):
-    """Generates a list of highly saturated, distinct RGB colors."""
     colors = set()
     while len(colors) < count:
         h = random.random()
@@ -67,7 +66,7 @@ def set_all_text_formatting(doc):
         
         paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
         paragraph.paragraph_format.space_before = Pt(0)
-        paragraph.paragraph_format.space_after = Pt(6) # Dãn đoạn mặc định (sẽ bị ghi đè)
+        paragraph.paragraph_format.space_after = Pt(6)
 
 def apply_html_formatting_to_run(paragraph, current_text):
     """Thêm nội dung văn bản, xử lý các thẻ HTML <i>, <b>, <u>."""
@@ -93,7 +92,7 @@ def apply_html_formatting_to_run(paragraph, current_text):
     if last_end < len(current_text):
         paragraph.add_run(current_text[last_end:])
 
-# Logic xử lý splitting, multi-speaker, và continuation
+# FIX: Logic mới xử lý căn Tab triệt để
 def format_and_split_dialogue(document, text):
     """
     Tách một dòng text thô (có thể chứa nhiều người nói) thành các đoạn văn bản 
@@ -114,9 +113,9 @@ def format_and_split_dialogue(document, text):
         new_paragraph.paragraph_format.first_line_indent = Inches(-1.0)
         new_paragraph.paragraph_format.tab_stops.add_tab_stop(Inches(1.0), WD_TAB_ALIGNMENT.LEFT)
         
-        new_paragraph.add_run('\t') # FIX: 1 Tab cho nội dung tiếp tục
+        new_paragraph.add_run('\t') # Luôn chỉ dùng 1 Tab cho nội dung tiếp tục
         
-        # BỎ DÒNG TRẮNG SAU KHI XỬ LÝ (dòng nội dung không có Pt(6))
+        # BỎ DÒNG TRẮNG SAU KHI XỬ LÝ (Áp dụng Pt(0))
         new_paragraph.paragraph_format.space_after = Pt(0) 
         new_paragraph.paragraph_format.space_before = Pt(0)
         
@@ -135,7 +134,7 @@ def format_and_split_dialogue(document, text):
         continuation_paragraph.paragraph_format.left_indent = Inches(1.0)
         continuation_paragraph.paragraph_format.first_line_indent = Inches(-1.0)
         continuation_paragraph.paragraph_format.tab_stops.add_tab_stop(Inches(1.0), WD_TAB_ALIGNMENT.LEFT)
-        continuation_paragraph.add_run('\t') # FIX: chỉ 1 Tab cho continuation
+        continuation_paragraph.add_run('\t') # Luôn dùng 1 Tab cho continuation
         continuation_paragraph.paragraph_format.space_after = Pt(0) # BỎ DÒNG TRẮNG SAU KHI XỬ LÝ
         continuation_paragraph.paragraph_format.space_before = Pt(0)
         apply_html_formatting_to_run(continuation_paragraph, leading_content)
@@ -157,6 +156,9 @@ def format_and_split_dialogue(document, text):
             
         content = text[end:next_match_start].strip()
 
+        # FIX: SỬ DỤNG LẠI PARAGRAPH MỚI CHỈ ĐỂ CHÈN RUNS, 
+        # ĐẢM BẢO KHÔNG CÓ KÝ TỰ ENTER/XUỐNG DÒNG
+        
         new_paragraph = document.add_paragraph()
         
         # Áp dụng cấu trúc Hanging Indent cho tất cả các dòng đối thoại
@@ -171,13 +173,13 @@ def format_and_split_dialogue(document, text):
         run_speaker.font.color.rgb = font_color_object 
         
         # 2. Xử lý Tab Linh hoạt (1 Tab hoặc 2 Tab)
-        # Giả định tên người nói dài hơn 10 ký tự cần 2 Tabs để căn thẳng
+        # Nếu tên người nói dài hơn 10 ký tự, chúng ta dùng 2 Tabs
         if len(speaker_full) > 10:
              new_paragraph.add_run('\t\t') 
         else:
              new_paragraph.add_run('\t') 
 
-        # 3. Thêm nội dung
+        # 3. Thêm nội dung (NẰM TRÊN CÙNG DÒNG VỚI TÊN NGƯỜI NÓI)
         if content:
             apply_html_formatting_to_run(new_paragraph, content)
 
@@ -247,6 +249,7 @@ def process_docx(uploaded_file, file_name_without_ext):
             
         # B.3 Dialogue Content (Không có dãn đoạn sau)
         else:
+            # FIX: Hàm format_and_split_dialogue được gọi và xử lý nội dung trên CÙNG DÒNG
             format_and_split_dialogue(document, text)
             
     # C. Apply General Font/Size and Spacing (Global settings)
@@ -259,19 +262,17 @@ def process_docx(uploaded_file, file_name_without_ext):
     
     return modified_file
 
-# --- FIX Đặt Tên File ---
+# --- FIX Đặt Tên File (Giữ nguyên) ---
 def clean_file_name_for_output(original_filename):
     """Xóa tiền tố/hậu tố không mong muốn và thêm '_edit'."""
     name_without_ext = os.path.splitext(original_filename)[0]
     
-    # Làm sạch tên file
     cleaned_name = name_without_ext.replace("CONVERTED_", "").replace("FORMATTED_", "").strip()
     cleaned_name = re.sub(r'\s*\(.*\)$', '', cleaned_name).strip() 
     
     if cleaned_name.lower().endswith("_edit"):
          cleaned_name = cleaned_name[:-5].strip()
 
-    # Áp dụng hậu tố bắt buộc
     return f"{cleaned_name}_edit.docx"
 
 # --- GIAO DIỆN STREAMLIT ---
