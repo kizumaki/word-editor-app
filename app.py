@@ -112,12 +112,12 @@ def format_and_split_dialogue(document, text):
     if len(parts) == 1:
         new_paragraph = document.add_paragraph()
         
-        # Áp dụng cấu trúc Hanging Indent (Cho các dòng continuation)
+        # Áp dụng cấu trúc Hanging Indent
         new_paragraph.paragraph_format.left_indent = TAB_STOP_POSITION
         new_paragraph.paragraph_format.first_line_indent = Inches(-1.0) 
         new_paragraph.paragraph_format.tab_stops.add_tab_stop(TAB_STOP_POSITION, WD_TAB_ALIGNMENT.LEFT)
         
-        new_paragraph.add_run('\t') # Luôn chỉ dùng 1 Tab 
+        new_paragraph.add_run('\t') # Luôn chỉ dùng 1 Tab cho nội dung tiếp tục
         
         # BỎ DÒNG TRẮNG SAU KHI XỬ LÝ (Áp dụng Pt(0))
         new_paragraph.paragraph_format.space_after = Pt(0) 
@@ -178,12 +178,26 @@ def format_and_split_dialogue(document, text):
         run_speaker.font.bold = True
         run_speaker.font.color.rgb = font_color_object 
         
-        # 2. Xử lý Tab Linh hoạt (1 Tab hoặc 2 Tab) - YÊU CẦU CUỐI CÙNG
+        # --- FIX LỖI XUỐNG DÒNG (Chỉ áp dụng khi chỉ có 1 người nói) ---
+        if len(speaker_matches) == 1:
+            # Lấy đối tượng XML của Run cuối cùng (tên người nói)
+            r_element = run_speaker._element
+            
+            # Kiểm tra và xóa bất kỳ khoảng trắng nào ngay sau Run trong XML (lô-gic cực kỳ kỹ thuật)
+            # Điều này ngăn Word coi khoảng trắng là một ngắt dòng
+            if r_element.tail and r_element.tail.startswith(' '):
+                r_element.tail = r_element.tail[1:]
+            
+            # Xóa bất kỳ run trống nào có thể chứa ngắt dòng nếu có
+            if len(new_paragraph.runs) > 1 and not new_paragraph.runs[-1].text.strip():
+                 r_element.getparent().remove(new_paragraph.runs[-1]._element)
+            
+        # 2. Xử lý Tab Linh hoạt (1 Tab hoặc 2 Tab)
         # Nếu tên người nói (đã bao gồm ": ") dài hơn 10 ký tự, cần 2 Tabs
         if len(speaker_full) > 10:
              new_paragraph.add_run('\t\t') 
         else:
-             new_paragraph.add_run('\t') # 1 Tab cho tên ngắn
+             new_paragraph.add_run('\t') 
 
         # 3. Thêm nội dung (NẰM TRÊN CÙNG DÒNG VỚI TÊN NGƯỜI NÓI)
         if content:
@@ -310,6 +324,7 @@ if uploaded_file is not None:
 
                 st.success("✅ Định dạng hoàn tất! Bạn có thể tải file về.")
                 
+                # Nút tải file
                 st.download_button(
                     label="3. Tải File Word Đã Định Dạng Về",
                     data=modified_file_io,
