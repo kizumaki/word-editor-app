@@ -40,10 +40,16 @@ speaker_color_map = {}
 highlight_map = {} 
 used_colors = []
 
-# FIX: Tăng số lượng màu Highlight an toàn lên 8
+# FIX: THAY THẾ TÊN HẰNG SỐ BẰNG GIÁ TRỊ SỐ NGUYÊN (ỔN ĐỊNH NHẤT)
 HIGHLIGHT_CYCLE = [
-    WD_COLOR_INDEX.YELLOW, WD_COLOR_INDEX.TURQUOISE, WD_COLOR_INDEX.PINK, WD_COLOR_INDEX.BRIGHT_GREEN,
-    WD_COLOR_INDEX.PALE_BLUE, WD_COLOR_INDEX.LIGHT_ORANGE, WD_COLOR_INDEX.TEAL, WD_COLOR_INDEX.VIOLET
+    6,  # YELLOW
+    3,  # TURQUOISE
+    14, # PINK
+    11, # BRIGHT_GREEN
+    1,  # PALE_BLUE
+    5,  # LIGHT_ORANGE
+    15, # TEAL
+    13  # VIOLET
 ] 
 
 def get_speaker_color(speaker_name):
@@ -60,13 +66,13 @@ def get_speaker_color(speaker_name):
             
         speaker_color_map[speaker_name] = color_object
         
-        # FIX: Gán màu Highlight luân phiên cho speaker mới
+        # Gán màu Highlight luân phiên cho speaker mới
         speaker_id = len(speaker_color_map)
         highlight_map[speaker_name] = HIGHLIGHT_CYCLE[speaker_id % len(HIGHLIGHT_CYCLE)]
         
     return speaker_color_map[speaker_name]
 
-# FIX: Danh sách các cụm từ KHÔNG phải là tên người nói
+# FIX: Danh sách các cụm từ KHÔNG phải là tên người nói (Giữ nguyên)
 NON_SPEAKER_PHRASES = {
     "AND REMEMBER", "OFFICIAL DISTANCE", "GOOD NEWS FOR THEIR TEAMMATES", 
     "LL BE HONEST", "FIRST AND FOREMOST", "I SAID", "THE ONLY THING LEFT TO SETTLE", 
@@ -269,7 +275,7 @@ def process_docx(uploaded_file, file_name_without_ext):
     
     title_run = title_paragraph.runs[0]
     title_run.font.name = 'Times New Roman'
-    title_run.font.size = Pt(20) 
+    title_run.font.size = Pt(20) # FIX: Size 20
     title_run.bold = True
     
     # 2. Thu thập tất cả tên người nói duy nhất
@@ -337,11 +343,6 @@ def process_docx(uploaded_file, file_name_without_ext):
             
     # C. Apply General Font/Size and Spacing (Global settings)
     for paragraph in document.paragraphs[start_index_for_general_format:]:
-        # FIX: Cập nhật dãn dòng 1.5 Lines cho nội dung đối thoại
-        paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE 
-        paragraph.paragraph_format.space_before = Pt(0)
-        paragraph.paragraph_format.space_after = Pt(0)
-        
         for run in paragraph.runs:
             run.font.name = 'Times New Roman'
             run.font.size = Pt(12)
