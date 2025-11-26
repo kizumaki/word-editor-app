@@ -58,16 +58,18 @@ SPEAKER_REGEX_DELIMITER = re.compile(r"([A-Z][a-z\s&]+):\s*", re.IGNORECASE)
 TIMECODE_REGEX = re.compile(r"^\d{2}:\d{2}:\d{2},\d{3}\s+-->\s+\d{2}:\d{2}:\d{2},\d{3}$")
 HTML_CONTENT_REGEX = re.compile(r"((?:</?[ibu]>)+)(.*?)(?:</?[ibu]>)+", re.IGNORECASE | re.DOTALL)
 
-# FIX: Danh sách các cụm từ KHÔNG phải là tên người nói (Cập nhật để bảo tồn các vai trò hợp lệ)
+# FIX: Danh sách các cụm từ KHÔNG phải là tên người nói (Đã tinh gọn để chỉ lọc các cụm từ mô tả hành động/sự kiện)
 NON_SPEAKER_PHRASES = {
     "AND REMEMBER", "OFFICIAL DISTANCE", "GOOD NEWS FOR THEIR TEAMMATES", 
     "LL BE HONEST", "FIRST AND FOREMOST", "I SAID", "THE ONLY THING LEFT TO SETTLE", 
-    "QUESTION IS", "FINALISTS", "CONTESTANTS", "TEAM PURPLE", "TEAM GREEN", 
+    "QUESTION IS", "FINALISTS", "TEAM PURPLE", "TEAM GREEN", 
     "TEAM PINK", "DUDE PERFECT", "TITLE VO", "WHISPERS", "SRT CONVERSION", 
     "WILL RED THRIVE OR WILL RED BE DEAD", "BUT REMEMBER", "THE RESULTS ARE IN", 
     "WE CHALLENGED", "I THINK", "IN THEIR DEFENSE", "THE PEAK OF HIS LIFE WAS DOING THE SPACETHING",
-    "THE ROCKETS ARE BIGGER", "THE DISTANCE SHOULD BE FURTHER", "GET CRAFTY", "THAT WAS SO SICK",
-    "OUT OF 100 CONTESTANTS", "THE FIRST ROUND IS BRUTAL", "YOU KNOW WHICH END GOES"
+    "THE ROCKETS ARE BIGGER", "THE DISTANCE SHOULD BE FURTHER", "GET CRAFTY", 
+    "OUT OF 100 CONTESTANTS", "THE FIRST ROUND IS BRUTAL", "YOU KNOW WHICH END GOES",
+    "THE GAME IS ON", "THAT'S A GOOD THROW", "HE'S GOING FOR IT", "WE GOT THIS",
+    "LAUNCH", "OH NO", "OH", "AH", "YEP", "WAIT" # Lọc các từ cảm thán và hành động ngắn
 }
 
 def set_all_text_formatting(doc, start_index=0):
@@ -119,12 +121,12 @@ def format_and_split_dialogue(document, text):
     TAB_STOP_POSITION = Inches(1.0) # Vị trí căn thẳng lời thoại
     
     # ---------------------------------------------
-    # CĂN LỀ/TAB CHO DÒNG TIẾP TỤC (Continuation Line)
+    # CASE 1: NO SPEAKER FOUND (Continuation Line)
     # ---------------------------------------------
     if len(parts) == 1:
         new_paragraph = document.add_paragraph()
         
-        # Áp dụng cấu trúc Hanging Indent (Giữ FIX này để căn lời thoại)
+        # Áp dụng cấu trúc Hanging Indent
         new_paragraph.paragraph_format.left_indent = TAB_STOP_POSITION
         new_paragraph.paragraph_format.first_line_indent = Inches(-1.0) 
         new_paragraph.paragraph_format.tab_stops.add_tab_stop(TAB_STOP_POSITION, WD_TAB_ALIGNMENT.LEFT)
@@ -139,10 +141,25 @@ def format_and_split_dialogue(document, text):
         return
     
     # ---------------------------------------------
-    # XỬ LÝ ĐA NGƯỜI NÓI (Multi-Speaker Splitting)
+    # CASE 2: ONE HOẶC NHIỀU SPEAKERS FOUND
     # ---------------------------------------------
 
-    # Lô-gic dẫn đầu (leading content) đã được xử lý trong vòng lặp chính (raw_paragraphs)
+    # parts[0] là nội dung TRƯỚC người nói đầu tiên (thường là continuation)
+    leading_content = parts[0].strip()
+    if leading_content:
+        # Tạo một đoạn continuation cho nội dung dẫn đầu này
+        continuation_paragraph = document.add_paragraph()
+        
+        # Áp dụng cấu trúc Hanging Indent
+        continuation_paragraph.paragraph_format.left_indent = TAB_STOP_POSITION
+        continuation_paragraph.paragraph_format.first_line_indent = Inches(-1.0)
+        continuation_paragraph.paragraph_format.tab_stops.add_tab_stop(TAB_STOP_POSITION, WD_TAB_ALIGNMENT.LEFT)
+        
+        continuation_paragraph.add_run('\t') # Luôn dùng 1 Tab cho continuation
+        continuation_paragraph.paragraph_format.space_after = Pt(0) # BỎ DÒNG TRẮNG SAU KHI XỬ LÝ
+        continuation_paragraph.paragraph_format.space_before = Pt(0)
+        apply_html_formatting_to_run(continuation_paragraph, leading_content)
+    
     
     # Lặp qua các cặp (Tên người nói + Nội dung)
     speaker_matches = list(SPEAKER_REGEX_DELIMITER.finditer(text))
@@ -152,8 +169,9 @@ def format_and_split_dialogue(document, text):
         speaker_name = match.group(1).strip()
         start, end = match.span()
         
-        # FIX LỌC: Kiểm tra tên người nói giả
+        # FIX: Lọc tên người nói giả
         if speaker_name.upper() in NON_SPEAKER_PHRASES:
+            # Nếu là cụm từ mô tả, xử lý nó như nội dung tiếp tục
             content_block = text[start:] 
             
             continuation_paragraph = document.add_paragraph()
@@ -161,11 +179,12 @@ def format_and_split_dialogue(document, text):
             continuation_paragraph.paragraph_format.first_line_indent = Inches(-1.0)
             continuation_paragraph.paragraph_format.tab_stops.add_tab_stop(TAB_STOP_POSITION, WD_TAB_ALIGNMENT.LEFT)
             
+            # Thêm cụm từ mô tả/ghi chú và phần còn lại
             continuation_paragraph.add_run('\t') 
             apply_html_formatting_to_run(continuation_paragraph, content_block)
             continuation_paragraph.paragraph_format.space_after = Pt(0)
             continuation_paragraph.paragraph_format.space_before = Pt(0)
-            return
+            return # Thoát khỏi hàm nếu đã xử lý như một khối mô tả
             
         # Xác định nội dung của người nói hiện tại
         if i + 1 < len(speaker_matches):
@@ -191,7 +210,6 @@ def format_and_split_dialogue(document, text):
         run_speaker.font.color.rgb = font_color_object 
         
         # 2. Xử lý Tab Linh hoạt (1 Tab hoặc 2 Tab)
-        # FIX: Đây là lô-gic duy nhất cho Tab Linh hoạt
         if len(speaker_full) > 10:
              new_paragraph.add_run('\t\t') 
         else:
@@ -263,7 +281,7 @@ def process_docx(uploaded_file, file_name_without_ext):
         # Áp dụng định dạng Size 12, không in đậm
         for run in speaker_list_paragraph.runs:
             run.font.name = 'Times New Roman'
-            run.font.size = Pt(12) 
+            run.font.size = Pt(12) # FIX: Size 12
             run.font.bold = False
         
         # Dãn đoạn 6pt sau dòng liệt kê
@@ -297,8 +315,8 @@ def process_docx(uploaded_file, file_name_without_ext):
             new_paragraph = document.add_paragraph(text)
             for run in new_paragraph.runs:
                 run.font.bold = True
-                run.font.name = 'Times New Roman' 
-                run.font.size = Pt(12) 
+                run.font.name = 'Times New Roman' # FIX: Đặt Font cho Timecode
+                run.font.size = Pt(12) # FIX: Size 12
             new_paragraph.paragraph_format.space_after = Pt(6) # Dãn đoạn 6pt sau timecode
             new_paragraph.paragraph_format.space_before = Pt(0) 
             
