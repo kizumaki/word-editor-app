@@ -40,8 +40,11 @@ speaker_color_map = {}
 highlight_map = {} 
 used_colors = []
 
-# FIX: Danh sách Highlight an toàn và luân phiên
-HIGHLIGHT_CYCLE = [WD_COLOR_INDEX.YELLOW, WD_COLOR_INDEX.TURQUOISE, WD_COLOR_INDEX.PINK, WD_COLOR_INDEX.BRIGHT_GREEN] 
+# FIX: Tăng số lượng màu Highlight an toàn lên 8
+HIGHLIGHT_CYCLE = [
+    WD_COLOR_INDEX.YELLOW, WD_COLOR_INDEX.TURQUOISE, WD_COLOR_INDEX.PINK, WD_COLOR_INDEX.BRIGHT_GREEN,
+    WD_COLOR_INDEX.PALE_BLUE, WD_COLOR_INDEX.LIGHT_ORANGE, WD_COLOR_INDEX.TEAL, WD_COLOR_INDEX.VIOLET
+] 
 
 def get_speaker_color(speaker_name):
     global used_colors
@@ -57,7 +60,7 @@ def get_speaker_color(speaker_name):
             
         speaker_color_map[speaker_name] = color_object
         
-        # Gán màu Highlight luân phiên cho speaker mới
+        # FIX: Gán màu Highlight luân phiên cho speaker mới
         speaker_id = len(speaker_color_map)
         highlight_map[speaker_name] = HIGHLIGHT_CYCLE[speaker_id % len(HIGHLIGHT_CYCLE)]
         
@@ -82,7 +85,6 @@ SPEAKER_REGEX_DELIMITER = re.compile(r"([A-Z][a-z\s&]+):\s*", re.IGNORECASE)
 TIMECODE_REGEX = re.compile(r"^\d{2}:\d{2}:\d{2},\d{3}\s+-->\s+\d{2}:\d{2}:\d{2},\d{3}$")
 HTML_CONTENT_REGEX = re.compile(r"((?:</?[ibu]>)+)(.*?)(?:</?[ibu]>)+", re.IGNORECASE | re.DOTALL)
 
-# FIX: Cập nhật hàm này với thông số Spacing 1.5 Lines
 def set_all_text_formatting(doc, start_index=0):
     """Áp dụng Times New Roman 12pt và định dạng dãn đoạn chung cho nội dung chính."""
     for i, paragraph in enumerate(doc.paragraphs):
@@ -93,10 +95,9 @@ def set_all_text_formatting(doc, start_index=0):
             run.font.name = 'Times New Roman'
             run.font.size = Pt(12) 
         
-        # FIX: ÁP DỤNG THÔNG SỐ CĂN DÒNG MỚI (1.5 Lines, 0pt Before/After)
-        paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE 
-        paragraph.paragraph_format.space_before = Pt(0) 
-        paragraph.paragraph_format.space_after = Pt(0) 
+        paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
+        paragraph.paragraph_format.space_before = Pt(0)
+        paragraph.paragraph_format.space_after = Pt(6)
 
 def apply_html_formatting_to_run(paragraph, current_text):
     """Thêm nội dung văn bản, xử lý các thẻ HTML <i>, <b>, <u>."""
@@ -145,7 +146,7 @@ def format_and_split_dialogue(document, text):
         
         new_paragraph.add_run('\t') # Luôn chỉ dùng 1 Tab cho nội dung tiếp tục
         
-        # FIX: Áp dụng 0pt After/Before
+        # BỎ DÒNG TRẮNG SAU KHI XỬ LÝ (Áp dụng Pt(0))
         new_paragraph.paragraph_format.space_after = Pt(0) 
         new_paragraph.paragraph_format.space_before = Pt(0)
         
@@ -168,7 +169,7 @@ def format_and_split_dialogue(document, text):
         continuation_paragraph.paragraph_format.tab_stops.add_tab_stop(TAB_STOP_POSITION, WD_TAB_ALIGNMENT.LEFT)
         
         continuation_paragraph.add_run('\t') # Luôn dùng 1 Tab cho continuation
-        continuation_paragraph.paragraph_format.space_after = Pt(0) # FIX: 0pt After/Before
+        continuation_paragraph.paragraph_format.space_after = Pt(0) # BỎ DÒNG TRẮNG SAU KHI XỬ LÝ
         continuation_paragraph.paragraph_format.space_before = Pt(0)
         apply_html_formatting_to_run(continuation_paragraph, leading_content)
     
@@ -234,7 +235,7 @@ def format_and_split_dialogue(document, text):
         if content:
             apply_html_formatting_to_run(new_paragraph, content)
 
-        # BỎ DÒNG TRẮNG SAU KHI XỬ LÝ (ÁP DỤNG PT(0))
+        # BỎ DÒNG TRẮNG SAU KHI XỬ LÝ
         new_paragraph.paragraph_format.space_after = Pt(0)
         new_paragraph.paragraph_format.space_before = Pt(0)
         
@@ -297,7 +298,6 @@ def process_docx(uploaded_file, file_name_without_ext):
             run.font.size = Pt(12) 
             run.font.bold = False
         
-        # Dãn đoạn 6pt sau dòng liệt kê
         speaker_list_paragraph.paragraph_format.space_after = Pt(6) 
         speaker_list_paragraph.paragraph_format.space_before = Pt(0)
     
@@ -336,10 +336,9 @@ def process_docx(uploaded_file, file_name_without_ext):
             format_and_split_dialogue(document, text)
             
     # C. Apply General Font/Size and Spacing (Global settings)
-    # Áp dụng Times New Roman 12pt và 1.5 lines (0pt After, 0pt Before) cho NỘI DUNG CHÍNH
     for paragraph in document.paragraphs[start_index_for_general_format:]:
         # FIX: Cập nhật dãn dòng 1.5 Lines cho nội dung đối thoại
-        paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE
+        paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE 
         paragraph.paragraph_format.space_before = Pt(0)
         paragraph.paragraph_format.space_after = Pt(0)
         
