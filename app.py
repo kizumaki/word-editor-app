@@ -13,12 +13,12 @@ import random
 # --- Helper Functions and Constants ---
 
 def generate_vibrant_rgb_colors(count=150):
-    """Generates a list of highly saturated, distinct RGB colors (BRIGHTER for readability on white background)."""
+    """Generates a list of highly saturated, distinct RGB colors (DARKER for better contrast)."""
     colors = set()
     while len(colors) < count:
         h = random.random()
         s = 0.9 # Saturation cao
-        v = 0.9 # Value/Brightness CAO (FIX: Để màu chữ sáng, tăng tương phản)
+        v = 0.6 # Value/Brightness TRUNG BÌNH (FIX: Để màu chữ đủ tối, tăng tương phản)
         
         if s == 0.0: r = g = b = v
         else:
@@ -31,8 +31,8 @@ def generate_vibrant_rgb_colors(count=150):
             else: r, g, b = v, p, q
         
         r, g, b = int(r * 255), int(g * 255), int(b * 255)
-        # Loại bỏ các màu quá tối để đảm bảo độ tương phản
-        if r < 100 and g < 100 and b < 100: continue 
+        # FIX: Chỉ chấp nhận các màu tối/trung bình để đảm bảo độ tương phản trên nền trắng/sáng
+        if r > 200 and g > 200 and b > 200: continue 
         colors.add((r, g, b))
     
     return list(colors)
@@ -42,7 +42,12 @@ speaker_color_map = {}
 highlight_map = {} 
 used_colors = []
 
-# FIX: Bỏ logic Highlight luân phiên, chỉ dùng None để tránh xung đột màu
+# FIX: Tăng số lượng màu Highlight an toàn (Index)
+HIGHLIGHT_CYCLE = [
+    WD_COLOR_INDEX.YELLOW, WD_COLOR_INDEX.TURQUOISE, WD_COLOR_INDEX.PINK, WD_COLOR_INDEX.BRIGHT_GREEN,
+    WD_COLOR_INDEX.PALE_BLUE, WD_COLOR_INDEX.LIGHT_ORANGE, WD_COLOR_INDEX.TEAL, WD_COLOR_INDEX.VIOLET
+] 
+
 def get_speaker_color(speaker_name):
     global used_colors
     global speaker_color_map
@@ -57,12 +62,13 @@ def get_speaker_color(speaker_name):
             
         speaker_color_map[speaker_name] = color_object
         
-        # FIX: Thiết lập Highlight là None/Trắng để đảm bảo tương phản
-        highlight_map[speaker_name] = WD_COLOR_INDEX.WHITE # Sử dụng màu trắng Index an toàn
+        # Gán màu Highlight luân phiên cho speaker mới
+        speaker_id = len(speaker_color_map)
+        highlight_map[speaker_name] = HIGHLIGHT_CYCLE[speaker_id % len(HIGHLIGHT_CYCLE)]
         
     return speaker_color_map[speaker_name]
 
-# Danh sách các cụm từ KHÔNG phải là tên người nói (Giữ nguyên)
+# FIX: Danh sách các cụm từ KHÔNG phải là tên người nói (Đã tinh lọc lần cuối)
 NON_SPEAKER_PHRASES = {
     "AND REMEMBER", "OFFICIAL DISTANCE", "GOOD NEWS FOR THEIR TEAMMATES", 
     "LL BE HONEST", "FIRST AND FOREMOST", "I SAID", "THE ONLY THING LEFT TO SETTLE", 
@@ -176,7 +182,7 @@ def format_and_split_dialogue(document, text):
             continuation_paragraph.paragraph_format.space_after = Pt(0)
             continuation_paragraph.paragraph_format.space_before = Pt(0)
             apply_html_formatting_to_run(continuation_paragraph, leading_content)
-    
+
         # FIX LỌC: Kiểm tra tên người nói giả
         if speaker_name.upper() in NON_SPEAKER_PHRASES:
             # Nếu là cụm từ mô tả, xử lý nó như nội dung tiếp tục
@@ -235,7 +241,7 @@ def format_and_split_dialogue(document, text):
         new_paragraph.paragraph_format.space_before = Pt(0)
         
         last_processed_index = next_match_start # Cập nhật vị trí xử lý cuối cùng
-        
+    
     # 4. Xử lý Nội dung còn lại sau người nói cuối cùng (nếu có)
     remaining_content = text[last_processed_index:].strip()
     if remaining_content:
