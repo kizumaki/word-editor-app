@@ -104,7 +104,7 @@ def format_and_split_dialogue(document, text):
     parts = SPEAKER_REGEX_DELIMITER.split(text)
     
     # --- CÁC THIẾT LẬP CĂN LỀ CHUNG ---
-    TAB_STOP_POSITION = Inches(0.75) # Vị trí căn thẳng lời thoại (0.75 inch)
+    TAB_STOP_POSITION = Inches(1.0) # Vị trí căn thẳng lời thoại
     
     # ---------------------------------------------
     # CASE 1: NO SPEAKER FOUND (Continuation Line)
@@ -112,13 +112,14 @@ def format_and_split_dialogue(document, text):
     if len(parts) == 1:
         new_paragraph = document.add_paragraph()
         
-        # Áp dụng Lề Trái và Tab Stop (KHÔNG DÙNG HANGING INDENT)
+        # Áp dụng cấu trúc Hanging Indent (Cho các dòng continuation)
         new_paragraph.paragraph_format.left_indent = TAB_STOP_POSITION
-        new_paragraph.paragraph_format.first_line_indent = None
+        new_paragraph.paragraph_format.first_line_indent = Inches(-1.0) 
         new_paragraph.paragraph_format.tab_stops.add_tab_stop(TAB_STOP_POSITION, WD_TAB_ALIGNMENT.LEFT)
         
         new_paragraph.add_run('\t') # Luôn chỉ dùng 1 Tab 
         
+        # BỎ DÒNG TRẮNG SAU KHI XỬ LÝ (Áp dụng Pt(0))
         new_paragraph.paragraph_format.space_after = Pt(0) 
         new_paragraph.paragraph_format.space_before = Pt(0)
         
@@ -135,13 +136,13 @@ def format_and_split_dialogue(document, text):
         # Tạo một đoạn continuation cho nội dung dẫn đầu này
         continuation_paragraph = document.add_paragraph()
         
-        # Áp dụng Lề Trái và Tab Stop
+        # Áp dụng cấu trúc Hanging Indent
         continuation_paragraph.paragraph_format.left_indent = TAB_STOP_POSITION
-        continuation_paragraph.paragraph_format.first_line_indent = None
+        continuation_paragraph.paragraph_format.first_line_indent = Inches(-1.0)
         continuation_paragraph.paragraph_format.tab_stops.add_tab_stop(TAB_STOP_POSITION, WD_TAB_ALIGNMENT.LEFT)
         
         continuation_paragraph.add_run('\t') # Luôn dùng 1 Tab cho continuation
-        continuation_paragraph.paragraph_format.space_after = Pt(0) 
+        continuation_paragraph.paragraph_format.space_after = Pt(0) # BỎ DÒNG TRẮNG SAU KHI XỬ LÝ
         continuation_paragraph.paragraph_format.space_before = Pt(0)
         apply_html_formatting_to_run(continuation_paragraph, leading_content)
     
@@ -164,11 +165,11 @@ def format_and_split_dialogue(document, text):
 
         new_paragraph = document.add_paragraph()
         
-        # FIX CĂN LỀ: Bỏ Hanging Indent, chỉ dùng Left Indent (0.0 inch)
-        new_paragraph.paragraph_format.left_indent = Inches(0.0)
-        new_paragraph.paragraph_format.first_line_indent = None
+        # Áp dụng cấu trúc Hanging Indent cho tất cả các dòng đối thoại
+        new_paragraph.paragraph_format.left_indent = TAB_STOP_POSITION
+        new_paragraph.paragraph_format.first_line_indent = Inches(-1.0)
         
-        # Đặt Tab Stop ở vị trí 0.75 inch
+        # Đặt Tab Stop ở vị trí 1.0 inch
         new_paragraph.paragraph_format.tab_stops.add_tab_stop(TAB_STOP_POSITION, WD_TAB_ALIGNMENT.LEFT)
         
         # 1. Run cho tên người nói (Bold và Color)
@@ -177,12 +178,12 @@ def format_and_split_dialogue(document, text):
         run_speaker.font.bold = True
         run_speaker.font.color.rgb = font_color_object 
         
-        # 2. Xử lý Tab Linh hoạt (1 Tab hoặc 2 Tab) - DÙNG ĐỂ CĂN THẲNG HÀNG
+        # 2. Xử lý Tab Linh hoạt (1 Tab hoặc 2 Tab) - YÊU CẦU CUỐI CÙNG
         # Nếu tên người nói (đã bao gồm ": ") dài hơn 10 ký tự, cần 2 Tabs
         if len(speaker_full) > 10:
              new_paragraph.add_run('\t\t') 
         else:
-             new_paragraph.add_run('\t') 
+             new_paragraph.add_run('\t') # 1 Tab cho tên ngắn
 
         # 3. Thêm nội dung (NẰM TRÊN CÙNG DÒNG VỚI TÊN NGƯỜI NÓI)
         if content:
@@ -309,7 +310,6 @@ if uploaded_file is not None:
 
                 st.success("✅ Định dạng hoàn tất! Bạn có thể tải file về.")
                 
-                # Nút tải file
                 st.download_button(
                     label="3. Tải File Word Đã Định Dạng Về",
                     data=modified_file_io,
