@@ -4,28 +4,13 @@ from docx.shared import Pt, RGBColor, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.text import WD_LINE_SPACING
 from docx.enum.text import WD_TAB_ALIGNMENT
+from docx.enum.text import WD_COLOR_INDEX # Import WD_COLOR_INDEX for safe highlighting
 import io
 import os
 import re
 import random
 
-# --- KHAI BÁO BIẾN TOÀN CỤC (FIX LỖI: name 'NON_SPEAKER_PHRASES' is not defined) ---
-# FIX: Đã tinh lọc danh sách này để loại trừ các vai trò hợp lệ như 'Woman VO', 'Boy in grey hoodie'
-NON_SPEAKER_PHRASES = {
-    "AND REMEMBER", "OFFICIAL DISTANCE", "GOOD NEWS FOR THEIR TEAMMATES", 
-    "LL BE HONEST", "FIRST AND FOREMOST", "I SAID", "THE ONLY THING LEFT TO SETTLE", 
-    "QUESTION IS", "FINALISTS", "TEAM PURPLE", "TEAM GREEN", 
-    "TEAM PINK", "DUDE PERFECT", "SRT CONVERSION", "WILL RED THRIVE OR WILL RED BE DEAD", 
-    "BUT REMEMBER", "THE RESULTS ARE IN", "WE CHALLENGED", "I THINK", 
-    "IN THEIR DEFENSE", "THE PEAK OF HIS LIFE WAS DOING THE SPACETHING", "OFFICIAL DISTANCE",
-    "THE ROCKETS ARE BIGGER", "THE DISTANCE SHOULD BE FURTHER", "THE ONLY THING LEFT TO SETTLE",
-    "THE FIRST ROUND IS BRUTAL", "YOU KNOW WHAT ELSE IS SICK", "HOW DO WE FEEL ABOUT OUR CHANCES TODAY",
-    "THE PINK COLOR IS PHENOMENAL", "YELLOW IS NEVER THE WAY TO GO"
-}
-# --- END KHAI BÁO BIẾN ---
-
-
-# --- Helper Functions and Constants (Giữ nguyên) ---
+# --- Helper Functions and Constants ---
 
 def generate_vibrant_rgb_colors(count=150):
     """Generates a list of highly saturated, distinct RGB colors."""
@@ -68,6 +53,16 @@ def get_speaker_color(speaker_name):
         speaker_color_map[speaker_name] = color_object
         
     return speaker_color_map[speaker_name]
+
+# FIX: Danh sách các cụm từ KHÔNG phải là tên người nói
+NON_SPEAKER_PHRASES = {
+    "AND REMEMBER", "OFFICIAL DISTANCE", "GOOD NEWS FOR THEIR TEAMMATES", 
+    "LL BE HONEST", "FIRST AND FOREMOST", "I SAID", "THE ONLY THING LEFT TO SETTLE", 
+    "QUESTION IS", "FINALISTS", "CONTESTANTS", "TEAM PURPLE", "TEAM GREEN", 
+    "TEAM PINK", "DUDE PERFECT", "WOMAN VO", "BOY IN GREY HOODIE", "TITLE VO", 
+    "WHISPERS", "SRT CONVERSION", "WILL RED THRIVE OR WILL RED BE DEAD", 
+    "BUT REMEMBER", "THE RESULTS ARE IN", "WE CHALLENGED", "I THINK"
+}
 
 # Regexes remain the same
 SPEAKER_REGEX_DELIMITER = re.compile(r"([A-Z][a-z\s&]+):\s*", re.IGNORECASE)
@@ -171,7 +166,7 @@ def format_and_split_dialogue(document, text):
         speaker_name = match.group(1).strip()
         start, end = match.span()
         
-        # FIX: Lọc tên người nói giả
+        # FIX LỌC: Kiểm tra tên người nói giả
         if speaker_name.upper() in NON_SPEAKER_PHRASES:
             # Nếu là cụm từ mô tả, xử lý nó như nội dung tiếp tục
             content_block = text[start:] 
@@ -211,7 +206,7 @@ def format_and_split_dialogue(document, text):
         run_speaker.font.bold = True
         run_speaker.font.color.rgb = font_color_object 
         
-        # 2. Xử lý Tab Linh hoạt (1 Tab hoặc 2 Tab)
+        # 2. Xử lý Tab Linh hoạt (1 Tab hoặc 2 Tab) - YÊU CẦU CUỐI CÙNG
         if len(speaker_full) > 10:
              new_paragraph.add_run('\t\t') 
         else:
@@ -383,6 +378,7 @@ if uploaded_file is not None:
 
                 st.success("✅ Định dạng hoàn tất! Bạn có thể tải file về.")
                 
+                # Nút tải file
                 st.download_button(
                     label="3. Tải File Word Đã Định Dạng Về",
                     data=modified_file_io,
