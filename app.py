@@ -58,7 +58,7 @@ SPEAKER_REGEX_DELIMITER = re.compile(r"([A-Z][a-z\s&]+):\s*", re.IGNORECASE)
 TIMECODE_REGEX = re.compile(r"^\d{2}:\d{2}:\d{2},\d{3}\s+-->\s+\d{2}:\d{2}:\d{2},\d{3}$")
 HTML_CONTENT_REGEX = re.compile(r"((?:</?[ibu]>)+)(.*?)(?:</?[ibu]>)+", re.IGNORECASE | re.DOTALL)
 
-def set_all_text_formatting(doc, start_index=0): # FIX: Thêm start_index
+def set_all_text_formatting(doc, start_index=0):
     """Áp dụng định dạng chung cho toàn bộ văn bản."""
     for i, paragraph in enumerate(doc.paragraphs):
         if i < start_index: # Bỏ qua tiêu đề và danh sách người nói
@@ -130,7 +130,7 @@ def format_and_split_dialogue(document, text):
         return
     
     # ---------------------------------------------
-    # CASE 2: ONE OR MORE SPEAKERS FOUND
+    # CASE 2: ONE HOẶC NHIỀU SPEAKERS FOUND
     # ---------------------------------------------
 
     # parts[0] là nội dung TRƯỚC người nói đầu tiên (thường là continuation)
@@ -181,7 +181,7 @@ def format_and_split_dialogue(document, text):
         run_speaker.font.bold = True
         run_speaker.font.color.rgb = font_color_object 
         
-        # 2. Xử lý Tab Linh hoạt (1 Tab hoặc 2 Tab) - YÊU CẦU CUỐI CÙNG
+        # 2. Xử lý Tab Linh hoạt (1 Tab hoặc 2 Tab)
         # Nếu tên người nói (đã bao gồm ": ") dài hơn 10 ký tự, cần 2 Tabs
         if len(speaker_full) > 10:
              new_paragraph.add_run('\t\t') 
@@ -213,9 +213,9 @@ def process_docx(uploaded_file, file_name_without_ext):
     
     document = Document()
     
-    # --- A. Set Main Title (FIX: Size 60, Thêm Dòng liệt kê Tên người nói) ---
+    # --- A. Set Main Title (FIX: Size 20, 2 Dòng trắng sau) ---
     
-    # Làm sạch tên file để làm tiêu đề
+    # 1. Làm sạch tên file để làm Tiêu đề
     title_text_raw = file_name_without_ext.upper()
     title_text = title_text_raw.replace("CONVERTED_", "").replace("FORMATTED_", "").replace("_EDIT", "").replace(" (GỐC)", "").strip()
     
@@ -226,24 +226,28 @@ def process_docx(uploaded_file, file_name_without_ext):
     
     title_run = title_paragraph.runs[0]
     title_run.font.name = 'Times New Roman'
-    title_run.font.size = Pt(60) # FIX: Size 60
+    title_run.font.size = Pt(20) # FIX: Size 20
     title_run.bold = True
     
-    # 2. Thu thập tất cả tên người nói duy nhất
+    # 2. Thu thập tất cả tên người nói duy nhất và theo thứ tự
     unique_speakers_ordered = []
     seen_speakers = set()
     
     for paragraph in raw_paragraphs:
         text = paragraph.text
+        # FIX: Loại bỏ dòng "SRT Conversion:..." khỏi quá trình lọc người nói
+        if text.lower().startswith("srt conversion"):
+             continue 
+             
         for match in SPEAKER_REGEX_DELIMITER.finditer(text):
             speaker_name = match.group(1).strip()
             if speaker_name not in seen_speakers:
                 seen_speakers.add(speaker_name)
                 unique_speakers_ordered.append(speaker_name)
             
-    # 3. Thêm Dòng liệt kê Tên người nói (Size 12, Normal)
+    # 3. Thêm Dòng liệt kê Tên người nói (Size 12, Vai)
     if unique_speakers_ordered:
-        speaker_list_text = "NGƯỜI NÓI: " + ", ".join(unique_speakers_ordered)
+        speaker_list_text = "VAI: " + ", ".join(unique_speakers_ordered) # FIX: Thay NGƯỜI NÓI thành VAI
         speaker_list_paragraph = document.add_paragraph(speaker_list_text)
         
         # Áp dụng định dạng Size 12, không in đậm
@@ -256,10 +260,10 @@ def process_docx(uploaded_file, file_name_without_ext):
         speaker_list_paragraph.paragraph_format.space_after = Pt(6) 
         speaker_list_paragraph.paragraph_format.space_before = Pt(0)
     
-    # Thêm 2 dòng trắng sau tiêu đề (từ yêu cầu trước)
+    # Thêm 2 dòng trắng sau tiêu đề
     document.add_paragraph().paragraph_format.space_after = Pt(0)
     document.add_paragraph().paragraph_format.space_after = Pt(0)
-
+    
     # --- B. Process raw paragraphs ---
     
     for paragraph in raw_paragraphs:
@@ -280,7 +284,7 @@ def process_docx(uploaded_file, file_name_without_ext):
             new_paragraph = document.add_paragraph(text)
             for run in new_paragraph.runs:
                 run.font.bold = True
-            new_paragraph.paragraph_format.space_after = Pt(6) # FIX: Dãn đoạn 6pt sau timecode
+            new_paragraph.paragraph_format.space_after = Pt(6) # Dãn đoạn 6pt sau timecode
             new_paragraph.paragraph_format.space_before = Pt(0) 
             
         # B.3 Dialogue Content (Không có dãn đoạn sau)
@@ -288,9 +292,9 @@ def process_docx(uploaded_file, file_name_without_ext):
             format_and_split_dialogue(document, text)
             
     # C. Apply General Font/Size and Spacing (Global settings)
-    # FIX: Chỉnh lại để chỉ áp dụng cho đoạn văn bản sau 3 đoạn đầu (Tiêu đề, List, Dòng trắng)
-    set_all_text_formatting(document, start_index=3) # Bỏ qua 3 đoạn đầu
-
+    # Index 3 là đoạn đầu tiên KHÔNG phải tiêu đề/list/dòng trắng
+    set_all_text_formatting(document, start_index=3) 
+    
     # Save the file
     modified_file = io.BytesIO()
     document.save(modified_file)
