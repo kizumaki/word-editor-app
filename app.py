@@ -18,7 +18,7 @@ def generate_vibrant_rgb_colors(count=150):
     while len(colors) < count:
         h = random.random()
         s = 0.9 
-        v = 0.6 # Medium/Low value for dark contrast font color
+        v = 0.4 # Value/Brightness TRUNG BÌNH/THẤP (Để màu chữ đủ tối)
         
         if s == 0.0: r = g = b = v
         else:
@@ -32,7 +32,7 @@ def generate_vibrant_rgb_colors(count=150):
         
         r, g, b = int(r * 255), int(g * 255), int(b * 255)
         # Ensure colors are dark/medium for high contrast on light backgrounds
-        if r > 200 and g > 200 and b > 200: continue 
+        if r > 180 and g > 180 and b > 180: continue 
         colors.add((r, g, b))
     
     return list(colors)
