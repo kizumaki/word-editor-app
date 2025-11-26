@@ -12,13 +12,12 @@ import random
 
 # --- Helper Functions and Constants ---
 
-def generate_vibrant_rgb_colors(count=150):
+# Pool màu Dark RGB (dành cho Highlight sáng/trắng)
+def generate_dark_vibrant_rgb_colors(count=150):
     """Generates a list of highly saturated, distinct RGB colors (DARKER for better contrast)."""
     colors = set()
     while len(colors) < count:
-        h = random.random()
-        s = 0.9 
-        v = 0.6 # Medium/Low value for dark contrast font color
+        h = random.random(); s = 0.9; v = 0.5 
         
         if s == 0.0: r = g = b = v
         else:
@@ -31,47 +30,71 @@ def generate_vibrant_rgb_colors(count=150):
             else: r, g, b = v, p, q
         
         r, g, b = int(r * 255), int(g * 255), int(b * 255)
-        # Ensure colors are dark/medium for high contrast on light backgrounds
-        if r > 200 and g > 200 and b > 200: continue 
+        if r > 180 and g > 180 and b > 180: continue # Loại bỏ màu quá sáng
         colors.add((r, g, b))
-    
     return list(colors)
 
-FONT_COLORS_RGB_150 = generate_vibrant_rgb_colors(150)
+# Pool màu Light RGB (dành cho Highlight tối)
+def generate_light_vibrant_rgb_colors(count=150):
+    """Generates a list of highly saturated, distinct RGB colors (BRIGHTER for contrast on dark highlight)."""
+    colors = set()
+    while len(colors) < count:
+        h = random.random(); s = 0.7; v = 0.9
+        
+        if s == 0.0: r = g = b = v
+        else:
+            i = int(h * 6.0); f = h * 6.0 - i; p = v * (1.0 - s); q = v * (1.0 - s * f); t = v * (1.0 - s * (1.0 - f))
+            if i % 6 == 0: r, g, b = v, t, p
+            elif i % 6 == 1: r, g, b = q, v, p
+            elif i % 6 == 2: r, g, b = p, v, t
+            elif i % 6 == 3: r, g, b = p, q, v
+            elif i % 6 == 4: r, g, b = t, p, v
+            else: r, g, b = v, p, q
+        
+        r, g, b = int(r * 255), int(g * 255), int(b * 255)
+        if r < 100 and g < 100 and b < 100: continue # Loại bỏ màu quá tối
+        colors.add((r, g, b))
+    return list(colors)
+
+
+FONT_COLORS_DARK_POOL = generate_dark_vibrant_rgb_colors(150)
+FONT_COLORS_LIGHT_POOL = generate_light_vibrant_rgb_colors(150)
+
 speaker_color_map = {}
 highlight_map = {} 
 used_colors = []
 
-# FIX: THAY THẾ TÊN HẰNG SỐ BẰNG GIÁ TRỊ SỐ NGUYÊN (ỔN ĐỊNH NHẤT)
-HIGHLIGHT_CYCLE = [
-    6,  # YELLOW
-    3,  # TURQUOISE
-    14, # PINK
-    11, # BRIGHT_GREEN
-    1,  # PALE_BLUE
-    5,  # LIGHT_ORANGE
-    15, # TEAL
-    13  # VIOLET
-] 
+# Safe integer values for safe light highlight colors
+HIGHLIGHT_LIGHT_CYCLE = [6, 3, 14, 11] # Yellow, Turquoise, Pink, Bright Green
+HIGHLIGHT_DARK_CYCLE = [10, 8, 15, 13] # Dark Blue, Blue, Teal, Violet (Tối hơn)
 
+# Logic để lấy màu DUY NHẤT VÀ PHỐI MÀU ĐỐI NGHỊCH
 def get_speaker_color(speaker_name):
-    """Assigns unique, high-contrast color (Font RGB + Safe Highlight Index) to a speaker."""
-    global used_colors
     global speaker_color_map
     global highlight_map
     
     if speaker_name not in speaker_color_map:
-        if used_colors:
-            color_object = used_colors.pop()
+        speaker_id = len(speaker_color_map)
+        
+        # 1. Chọn chiến lược màu (Chẵn/Lẻ)
+        if speaker_id % 2 == 0:
+            # CHÂN LẺ: Màu chữ TỐI (Dark) trên Highlight SÁNG (Light)
+            color_pool_rgb = FONT_COLORS_DARK_POOL
+            highlight_pool_idx = HIGHLIGHT_LIGHT_CYCLE
         else:
-            r, g, b = random.choice(FONT_COLORS_RGB_150)
-            color_object = RGBColor(r, g, b)
+            # CHÂN CHẴN: Màu chữ SÁNG (Light) trên Highlight TỐI (Dark)
+            color_pool_rgb = FONT_COLORS_LIGHT_POOL
+            highlight_pool_idx = HIGHLIGHT_DARK_CYCLE
+        
+        # 2. Lấy màu RGB ngẫu nhiên từ pool đã chọn
+        r, g, b = random.choice(color_pool_rgb)
+        color_object = RGBColor(r, g, b)
+        
+        # 3. Lấy màu Highlight luân phiên
+        highlight_index = highlight_pool_idx[speaker_id % len(highlight_pool_idx)]
             
         speaker_color_map[speaker_name] = color_object
-        
-        # Assign unique highlight color index
-        speaker_id = len(speaker_color_map)
-        highlight_map[speaker_name] = HIGHLIGHT_CYCLE[speaker_id % len(HIGHLIGHT_CYCLE)]
+        highlight_map[speaker_name] = highlight_index
         
     return speaker_color_map[speaker_name]
 
@@ -133,22 +156,23 @@ def apply_html_formatting_to_run(paragraph, current_text):
     if last_end < len(current_text):
         paragraph.add_run(current_text[last_end:])
 
-# Logic for handling Tabs and Indentation (Hanging Indent structure)
+# Logic xử lý căn Tab triệt để
 def format_and_split_dialogue(document, text):
     """
     Splits a raw text line (which might contain multi-speakers) into separate dialogue 
-    paragraphs and applies the required Tab/Hanging Indent formatting.
+    paragraphs and applies precise Tab/Hanging Indent formatting.
     """
     
+    parts = SPEAKER_REGEX_DELIMITER.split(text)
     TAB_STOP_POSITION = Inches(1.0) # Dialogue start position
     
     # ---------------------------------------------
-    # CASE 1: NO SPEAKER FOUND (Continuation Line)
+    # CĂN LỀ CHO NỘI DUNG TIẾP TỤC (Chỉ có một phần tử)
     # ---------------------------------------------
     if len(parts) == 1:
         new_paragraph = document.add_paragraph()
         
-        # Apply Hanging Indent structure
+        # Áp dụng cấu trúc Hanging Indent
         new_paragraph.paragraph_format.left_indent = TAB_STOP_POSITION
         new_paragraph.paragraph_format.first_line_indent = Inches(-1.0) 
         new_paragraph.paragraph_format.tab_stops.add_tab_stop(TAB_STOP_POSITION, WD_TAB_ALIGNMENT.LEFT)
@@ -163,10 +187,10 @@ def format_and_split_dialogue(document, text):
         return
     
     # ---------------------------------------------
-    # CASE 2: ONE OR MORE SPEAKERS FOUND
+    # XỬ LÝ ĐA NGƯỜI NÓI (Multi-Speaker Splitting)
     # ---------------------------------------------
 
-    # Iterate through all identified speakers
+    # Lặp qua các cặp (Tên người nói + Nội dung)
     speaker_matches = list(SPEAKER_REGEX_DELIMITER.finditer(text))
     last_processed_index = 0
     
@@ -175,7 +199,7 @@ def format_and_split_dialogue(document, text):
         speaker_name = match.group(1).strip()
         start, end = match.span()
         
-        # 1. Process Leading Content (content before the current speaker)
+        # 1. Xử lý Nội dung Dẫn đầu (nội dung trước tên người nói hiện tại)
         leading_content = text[last_processed_index:start].strip()
         if leading_content:
             continuation_paragraph = document.add_paragraph()
@@ -183,7 +207,7 @@ def format_and_split_dialogue(document, text):
             continuation_paragraph.paragraph_format.first_line_indent = Inches(-1.0)
             continuation_paragraph.paragraph_format.tab_stops.add_tab_stop(TAB_STOP_POSITION, WD_TAB_ALIGNMENT.LEFT)
             
-            continuation_paragraph.add_run('\t') 
+            continuation_paragraph.add_run('\t') # Luôn dùng 1 Tab cho continuation
             continuation_paragraph.paragraph_format.space_after = Pt(0)
             continuation_paragraph.paragraph_format.space_before = Pt(0)
             apply_html_formatting_to_run(continuation_paragraph, leading_content)
@@ -280,11 +304,10 @@ def process_docx(uploaded_file, file_name_without_ext):
     
     document = Document()
     
-    # --- A. Build Header Structure ---
+    # 1. Title Paragraph (Size 20)
     title_text_raw = file_name_without_ext.upper()
     title_text = title_text_raw.replace("CONVERTED_", "").replace("FORMATTED_", "").replace("_EDIT", "").replace(" (GỐC)", "").strip()
     
-    # 1. Title Paragraph (Size 20)
     title_paragraph = document.add_paragraph(title_text)
     title_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
     title_paragraph.paragraph_format.space_before = Pt(0)
