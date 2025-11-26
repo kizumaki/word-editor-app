@@ -12,6 +12,7 @@ import random
 # --- Helper Functions and Constants (Giữ nguyên) ---
 
 def generate_vibrant_rgb_colors(count=150):
+    """Generates a list of highly saturated, distinct RGB colors."""
     colors = set()
     while len(colors) < count:
         h = random.random()
@@ -115,7 +116,7 @@ def format_and_split_dialogue(document, text):
         
         new_paragraph.add_run('\t') # Luôn chỉ dùng 1 Tab cho nội dung tiếp tục
         
-        # BỎ DÒNG TRẮNG SAU KHI XỬ LÝ (Áp dụng Pt(0))
+        # BỎ DÒNG TRẮNG SAU KHI XỬ LÝ
         new_paragraph.paragraph_format.space_after = Pt(0) 
         new_paragraph.paragraph_format.space_before = Pt(0)
         
@@ -156,9 +157,6 @@ def format_and_split_dialogue(document, text):
             
         content = text[end:next_match_start].strip()
 
-        # FIX: SỬ DỤNG LẠI PARAGRAPH MỚI CHỈ ĐỂ CHÈN RUNS, 
-        # ĐẢM BẢO KHÔNG CÓ KÝ TỰ ENTER/XUỐNG DÒNG
-        
         new_paragraph = document.add_paragraph()
         
         # Áp dụng cấu trúc Hanging Indent cho tất cả các dòng đối thoại
@@ -172,14 +170,10 @@ def format_and_split_dialogue(document, text):
         run_speaker.font.bold = True
         run_speaker.font.color.rgb = font_color_object 
         
-        # 2. Xử lý Tab Linh hoạt (1 Tab hoặc 2 Tab)
-        # Nếu tên người nói dài hơn 10 ký tự, chúng ta dùng 2 Tabs
-        if len(speaker_full) > 10:
-             new_paragraph.add_run('\t\t') 
-        else:
-             new_paragraph.add_run('\t') 
+        # 2. Insert 1 Tab (FIX: LUÔN CHỈ 1 TAB để căn thẳng hàng)
+        new_paragraph.add_run('\t') 
 
-        # 3. Thêm nội dung (NẰM TRÊN CÙNG DÒNG VỚI TÊN NGƯỜI NÓI)
+        # 3. Thêm nội dung
         if content:
             apply_html_formatting_to_run(new_paragraph, content)
 
@@ -249,7 +243,6 @@ def process_docx(uploaded_file, file_name_without_ext):
             
         # B.3 Dialogue Content (Không có dãn đoạn sau)
         else:
-            # FIX: Hàm format_and_split_dialogue được gọi và xử lý nội dung trên CÙNG DÒNG
             format_and_split_dialogue(document, text)
             
     # C. Apply General Font/Size and Spacing (Global settings)
