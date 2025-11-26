@@ -13,11 +13,12 @@ import random
 # --- Helper Functions and Constants ---
 
 def generate_vibrant_rgb_colors(count=150):
-    """Generates a list of highly saturated, distinct RGB colors."""
+    """Generates a list of highly saturated, distinct RGB colors (BRIGHTER for readability on white background)."""
     colors = set()
     while len(colors) < count:
         h = random.random()
-        s, v = 0.8, 0.9
+        s = 0.9 # Saturation cao
+        v = 0.9 # Value/Brightness CAO (FIX: Để màu chữ sáng, tăng tương phản)
         
         if s == 0.0: r = g = b = v
         else:
@@ -30,7 +31,8 @@ def generate_vibrant_rgb_colors(count=150):
             else: r, g, b = v, p, q
         
         r, g, b = int(r * 255), int(g * 255), int(b * 255)
-        if (r < 50 and g < 50 and b < 50) or (r > 200 and g > 200 and b > 200): continue 
+        # Loại bỏ các màu quá tối để đảm bảo độ tương phản
+        if r < 100 and g < 100 and b < 100: continue 
         colors.add((r, g, b))
     
     return list(colors)
@@ -40,18 +42,7 @@ speaker_color_map = {}
 highlight_map = {} 
 used_colors = []
 
-# FIX: THAY THẾ TÊN HẰNG SỐ BẰNG GIÁ TRỊ SỐ NGUYÊN (ỔN ĐỊNH NHẤT)
-HIGHLIGHT_CYCLE = [
-    6,  # YELLOW
-    3,  # TURQUOISE
-    14, # PINK
-    11, # BRIGHT_GREEN
-    1,  # PALE_BLUE
-    5,  # LIGHT_ORANGE
-    15, # TEAL
-    13  # VIOLET
-] 
-
+# FIX: Bỏ logic Highlight luân phiên, chỉ dùng None để tránh xung đột màu
 def get_speaker_color(speaker_name):
     global used_colors
     global speaker_color_map
@@ -66,17 +57,16 @@ def get_speaker_color(speaker_name):
             
         speaker_color_map[speaker_name] = color_object
         
-        # Gán màu Highlight luân phiên cho speaker mới
-        speaker_id = len(speaker_color_map)
-        highlight_map[speaker_name] = HIGHLIGHT_CYCLE[speaker_id % len(HIGHLIGHT_CYCLE)]
+        # FIX: Thiết lập Highlight là None/Trắng để đảm bảo tương phản
+        highlight_map[speaker_name] = WD_COLOR_INDEX.WHITE # Sử dụng màu trắng Index an toàn
         
     return speaker_color_map[speaker_name]
 
-# FIX: Danh sách các cụm từ KHÔNG phải là tên người nói (Giữ nguyên)
+# Danh sách các cụm từ KHÔNG phải là tên người nói (Giữ nguyên)
 NON_SPEAKER_PHRASES = {
     "AND REMEMBER", "OFFICIAL DISTANCE", "GOOD NEWS FOR THEIR TEAMMATES", 
     "LL BE HONEST", "FIRST AND FOREMOST", "I SAID", "THE ONLY THING LEFT TO SETTLE", 
-    "QUESTION IS", "FINALISTS", "TEAM PURPLE", "TEAM GREEN", 
+    "QUESTION IS", "FINALISTS", "CONTESTANTS", "TEAM PURPLE", "TEAM GREEN", 
     "TEAM PINK", "DUDE PERFECT", "TITLE VO", "WHISPERS", "SRT CONVERSION", 
     "WILL RED THRIVE OR WILL RED BE DEAD", "BUT REMEMBER", "THE RESULTS ARE IN", 
     "WE CHALLENGED", "I THINK", "IN THEIR DEFENSE", "THE PEAK OF HIS LIFE WAS DOING THE SPACETHING",
@@ -101,9 +91,10 @@ def set_all_text_formatting(doc, start_index=0):
             run.font.name = 'Times New Roman'
             run.font.size = Pt(12) 
         
-        paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
+        # FIX Dãn dòng 1.5 Lines, 0pt Before/After
+        paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE 
         paragraph.paragraph_format.space_before = Pt(0)
-        paragraph.paragraph_format.space_after = Pt(6)
+        paragraph.paragraph_format.space_after = Pt(0) 
 
 def apply_html_formatting_to_run(paragraph, current_text):
     """Thêm nội dung văn bản, xử lý các thẻ HTML <i>, <b>, <u>."""
@@ -163,31 +154,29 @@ def format_and_split_dialogue(document, text):
     # XỬ LÝ ĐA NGƯỜI NÓI (Multi-Speaker Splitting)
     # ---------------------------------------------
 
-    # parts[0] là nội dung TRƯỚC người nói đầu tiên (thường là continuation)
-    leading_content = parts[0].strip()
-    if leading_content:
-        # Tạo một đoạn continuation cho nội dung dẫn đầu này
-        continuation_paragraph = document.add_paragraph()
-        
-        # Áp dụng cấu trúc Hanging Indent
-        continuation_paragraph.paragraph_format.left_indent = TAB_STOP_POSITION
-        continuation_paragraph.paragraph_format.first_line_indent = Inches(-1.0)
-        continuation_paragraph.paragraph_format.tab_stops.add_tab_stop(TAB_STOP_POSITION, WD_TAB_ALIGNMENT.LEFT)
-        
-        continuation_paragraph.add_run('\t') # Luôn dùng 1 Tab cho continuation
-        continuation_paragraph.paragraph_format.space_after = Pt(0) # BỎ DÒNG TRẮNG SAU KHI XỬ LÝ
-        continuation_paragraph.paragraph_format.space_before = Pt(0)
-        apply_html_formatting_to_run(continuation_paragraph, leading_content)
-    
-    
     # Lặp qua các cặp (Tên người nói + Nội dung)
     speaker_matches = list(SPEAKER_REGEX_DELIMITER.finditer(text))
+    last_processed_index = 0
     
     for i, match in enumerate(speaker_matches):
         speaker_full = match.group(0) 
         speaker_name = match.group(1).strip()
         start, end = match.span()
         
+        # 1. Xử lý Nội dung Dẫn đầu (nội dung trước tên người nói hiện tại)
+        leading_content = text[last_processed_index:start].strip()
+        if leading_content:
+            # Tạo một đoạn continuation cho nội dung dẫn đầu này
+            continuation_paragraph = document.add_paragraph()
+            continuation_paragraph.paragraph_format.left_indent = TAB_STOP_POSITION
+            continuation_paragraph.paragraph_format.first_line_indent = Inches(-1.0)
+            continuation_paragraph.paragraph_format.tab_stops.add_tab_stop(TAB_STOP_POSITION, WD_TAB_ALIGNMENT.LEFT)
+            
+            continuation_paragraph.add_run('\t') # Luôn dùng 1 Tab cho continuation
+            continuation_paragraph.paragraph_format.space_after = Pt(0)
+            continuation_paragraph.paragraph_format.space_before = Pt(0)
+            apply_html_formatting_to_run(continuation_paragraph, leading_content)
+    
         # FIX LỌC: Kiểm tra tên người nói giả
         if speaker_name.upper() in NON_SPEAKER_PHRASES:
             # Nếu là cụm từ mô tả, xử lý nó như nội dung tiếp tục
@@ -245,6 +234,20 @@ def format_and_split_dialogue(document, text):
         new_paragraph.paragraph_format.space_after = Pt(0)
         new_paragraph.paragraph_format.space_before = Pt(0)
         
+        last_processed_index = next_match_start # Cập nhật vị trí xử lý cuối cùng
+        
+    # 4. Xử lý Nội dung còn lại sau người nói cuối cùng (nếu có)
+    remaining_content = text[last_processed_index:].strip()
+    if remaining_content:
+        continuation_paragraph = document.add_paragraph()
+        continuation_paragraph.paragraph_format.left_indent = TAB_STOP_POSITION
+        continuation_paragraph.paragraph_format.first_line_indent = Inches(-1.0)
+        continuation_paragraph.paragraph_format.tab_stops.add_tab_stop(TAB_STOP_POSITION, WD_TAB_ALIGNMENT.LEFT)
+        continuation_paragraph.add_run('\t') 
+        continuation_paragraph.paragraph_format.space_after = Pt(0)
+        continuation_paragraph.paragraph_format.space_before = Pt(0)
+        apply_html_formatting_to_run(continuation_paragraph, remaining_content)
+        
     return 
 
 # --- Hàm xử lý chính ---
@@ -264,7 +267,7 @@ def process_docx(uploaded_file, file_name_without_ext):
     
     document = Document()
     
-    # --- A. Set Main Title (FIX: Size 20, 2 Dòng trắng sau) ---
+    # --- A. Set Main Title (Size 20, 2 Dòng trắng sau) ---
     title_text_raw = file_name_without_ext.upper()
     title_text = title_text_raw.replace("CONVERTED_", "").replace("FORMATTED_", "").replace("_EDIT", "").replace(" (GỐC)", "").strip()
     
@@ -275,7 +278,7 @@ def process_docx(uploaded_file, file_name_without_ext):
     
     title_run = title_paragraph.runs[0]
     title_run.font.name = 'Times New Roman'
-    title_run.font.size = Pt(20) # FIX: Size 20
+    title_run.font.size = Pt(20) 
     title_run.bold = True
     
     # 2. Thu thập tất cả tên người nói duy nhất
@@ -301,7 +304,7 @@ def process_docx(uploaded_file, file_name_without_ext):
         
         for run in speaker_list_paragraph.runs:
             run.font.name = 'Times New Roman'
-            run.font.size = Pt(12) # FIX: Size 12
+            run.font.size = Pt(12) 
             run.font.bold = False
         
         speaker_list_paragraph.paragraph_format.space_after = Pt(6) 
