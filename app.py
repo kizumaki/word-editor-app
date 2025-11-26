@@ -12,12 +12,13 @@ import random
 
 # --- Helper Functions and Constants ---
 
-# Pool màu Dark RGB (dành cho Highlight sáng)
-def generate_dark_vibrant_rgb_colors(count=150):
+def generate_vibrant_rgb_colors(count=150):
     """Generates a list of highly saturated, distinct RGB colors (DARKER for better contrast)."""
     colors = set()
     while len(colors) < count:
-        h = random.random(); s = 0.9; v = 0.4
+        h = random.random()
+        s = 0.9 
+        v = 0.4 # Medium/Low value for dark contrast font color
         
         if s == 0.0: r = g = b = v
         else:
@@ -30,86 +31,55 @@ def generate_dark_vibrant_rgb_colors(count=150):
             else: r, g, b = v, p, q
         
         r, g, b = int(r * 255), int(g * 255), int(b * 255)
+        # Ensure colors are dark/medium for high contrast on light backgrounds
         if r > 180 and g > 180 and b > 180: continue 
         colors.add((r, g, b))
+    
     return list(colors)
 
-# Pool màu Light RGB (dành cho Highlight tối)
-def generate_light_vibrant_rgb_colors(count=150):
-    """Generates a list of highly saturated, distinct RGB colors (LIGHTER for contrast on dark highlight)."""
-    colors = set()
-    while len(colors) < count:
-        h = random.random(); s = 0.7; v = 0.9
-        
-        if s == 0.0: r = g = b = v
-        else:
-            i = int(h * 6.0); f = h * 6.0 - i; p = v * (1.0 - s); q = v * (1.0 - s * f); t = v * (1.0 - s * (1.0 - f))
-            if i % 6 == 0: r, g, b = v, t, p
-            elif i % 6 == 1: r, g, b = q, v, p
-            elif i % 6 == 2: r, g, b = p, v, t
-            elif i % 6 == 3: r, g, b = p, q, v
-            elif i % 6 == 4: r, g, b = t, p, v
-            else: r, g, b = v, p, q
-        
-        r, g, b = int(r * 255), int(g * 255), int(b * 255)
-        if r < 100 and g < 100 and b < 100: continue 
-        colors.add((r, g, b))
-    return list(colors)
-
-FONT_COLORS_DARK_POOL = generate_dark_vibrant_rgb_colors(150)
-FONT_COLORS_LIGHT_POOL = generate_light_vibrant_rgb_colors(150)
-
+FONT_COLORS_RGB_150 = generate_vibrant_rgb_colors(150)
 speaker_color_map = {}
 highlight_map = {} 
-used_colors_dark = list(FONT_COLORS_DARK_POOL) # FIX: Pool dark
-used_colors_light = list(FONT_COLORS_LIGHT_POOL) # FIX: Pool light
-random.shuffle(used_colors_dark)
-random.shuffle(used_colors_light)
+used_colors = []
 
-# Safe highlight index values
-HIGHLIGHT_LIGHT_CYCLE = [6, 3, 14, 11] # YELLOW, TURQUOISE, PINK, BRIGHT_GREEN
-HIGHLIGHT_DARK_CYCLE = [10, 8, 15, 13] # DARK_BLUE, BLUE, TEAL, VIOLET
+# FIX: THAY THẾ TÊN HẰNG SỐ BẰNG GIÁ TRỊ SỐ NGUYÊN (ỔN ĐỊNH NHẤT)
+HIGHLIGHT_CYCLE = [
+    6,  # YELLOW
+    3,  # TURQUOISE
+    14, # PINK
+    11, # BRIGHT_GREEN
+    1,  # PALE_BLUE
+    5,  # LIGHT_ORANGE
+    15, # TEAL
+    13  # VIOLET
+] 
 
 def get_speaker_color(speaker_name):
     """Assigns unique, high-contrast color (Font RGB + Safe Highlight Index) to a speaker."""
+    global used_colors
     global speaker_color_map
     global highlight_map
-    global used_colors_dark
-    global used_colors_light
     
     if speaker_name not in speaker_color_map:
-        speaker_id = len(speaker_color_map)
-        
-        if speaker_id % 2 == 0:
-            # FIX: CHÂN LẺ (0, 2, 4,...): Font TỐI (Dark) trên Highlight SÁNG (Light)
-            font_pool = used_colors_dark
-            highlight_pool_idx = HIGHLIGHT_LIGHT_CYCLE
+        if used_colors:
+            color_object = used_colors.pop()
         else:
-            # FIX: CHÂN CHẴN (1, 3, 5,...): Font SÁNG (Light) trên Highlight TỐI (Dark)
-            font_pool = used_colors_light
-            highlight_pool_idx = HIGHLIGHT_DARK_CYCLE
-        
-        # Lấy màu RGB từ pool đã chọn
-        if font_pool:
-            r, g, b = font_pool.pop()
+            r, g, b = random.choice(FONT_COLORS_RGB_150)
             color_object = RGBColor(r, g, b)
-        else:
-            color_object = RGBColor(0, 0, 0) # Fallback
-        
-        # Lấy màu Highlight luân phiên
-        highlight_index = highlight_pool_idx[speaker_id % len(highlight_pool_idx)]
             
         speaker_color_map[speaker_name] = color_object
-        highlight_map[speaker_name] = highlight_index
+        
+        # Assign unique highlight color index
+        speaker_id = len(speaker_color_map)
+        highlight_map[speaker_name] = HIGHLIGHT_CYCLE[speaker_id % len(HIGHLIGHT_CYCLE)]
         
     return speaker_color_map[speaker_name]
 
-# List of common phrases mistakenly identified as speakers (for filtering)
+# FIX: Danh sách các cụm từ KHÔNG phải là tên người nói (Đã loại bỏ các vai trò hợp lệ)
 NON_SPEAKER_PHRASES = {
     "AND REMEMBER", "OFFICIAL DISTANCE", "GOOD NEWS FOR THEIR TEAMMATES", 
     "LL BE HONEST", "FIRST AND FOREMOST", "I SAID", "THE ONLY THING LEFT TO SETTLE", 
-    "QUESTION IS", "FINALISTS", "CONTESTANTS", "TEAM PURPLE", "TEAM GREEN", 
-    "TEAM PINK", "DUDE PERFECT", "TITLE VO", "WHISPERS", "SRT CONVERSION", 
+    "QUESTION IS", "FINALISTS", "WHISPERS", "SRT CONVERSION", 
     "WILL RED THRIVE OR WILL RED BE DEAD", "BUT REMEMBER", "THE RESULTS ARE IN", 
     "WE CHALLENGED", "I THINK", "IN THEIR DEFENSE", "THE PEAK OF HIS LIFE WAS DOING THE SPACETHING",
     "THE ROCKETS ARE BIGGER", "THE DISTANCE SHOULD BE FURTHER", "GET CRAFTY", "THAT WAS SO SICK",
