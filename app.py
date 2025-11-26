@@ -18,7 +18,7 @@ def generate_vibrant_rgb_colors(count=150):
     while len(colors) < count:
         h = random.random()
         s = 0.9 
-        v = 0.6 # Medium/Low value for dark contrast font color
+        v = 0.6 
         
         if s == 0.0: r = g = b = v
         else:
@@ -42,7 +42,7 @@ speaker_color_map = {}
 highlight_map = {} 
 used_colors = []
 
-# Safe highlight index values
+# FIX: THAY THẾ TÊN HẰNG SỐ BẰNG GIÁ TRỊ SỐ NGUYÊN (ỔN ĐỊNH NHẤT)
 HIGHLIGHT_CYCLE = [
     6,  # YELLOW
     3,  # TURQUOISE
@@ -142,44 +142,63 @@ def format_and_split_dialogue(document, text):
     
     TAB_STOP_POSITION = Inches(1.0) # Dialogue start position
     
-    # Process multi-speaker and complex lines
+    # 1. Process Leading Content (Continuation Line)
+    if not SPEAKER_REGEX_DELIMITER.search(text):
+        new_paragraph = document.add_paragraph()
+        
+        # Apply Hanging Indent structure
+        new_paragraph.paragraph_format.left_indent = TAB_STOP_POSITION
+        new_paragraph.paragraph_format.first_line_indent = Inches(-1.0) 
+        new_paragraph.paragraph_format.tab_stops.add_tab_stop(TAB_STOP_POSITION, WD_TAB_ALIGNMENT.LEFT)
+        
+        new_paragraph.add_run('\t') # Always use 1 Tab for continuation
+        
+        # Spacing
+        new_paragraph.paragraph_format.space_after = Pt(0) 
+        new_paragraph.paragraph_format.space_before = Pt(0)
+        
+        apply_html_formatting_to_run(new_paragraph, text)
+        return
+    
+    # 2. Iterate through all identified speakers
     speaker_matches = list(SPEAKER_REGEX_DELIMITER.finditer(text))
     last_processed_index = 0
     
-    # 1. Process Leading Content (before the first speaker or Continuation Line)
-    leading_content = text[last_processed_index:speaker_matches[0].start()].strip() if speaker_matches else text.strip()
-    
-    if leading_content:
-        # If no speakers found at all (simple continuation) OR content precedes first speaker
-        continuation_paragraph = document.add_paragraph()
-        
-        # Apply Hanging Indent structure
-        continuation_paragraph.paragraph_format.left_indent = TAB_STOP_POSITION
-        continuation_paragraph.paragraph_format.first_line_indent = Inches(-1.0)
-        continuation_paragraph.paragraph_format.tab_stops.add_tab_stop(TAB_STOP_POSITION, WD_TAB_ALIGNMENT.LEFT)
-        
-        continuation_paragraph.add_run('\t') 
-        continuation_paragraph.paragraph_format.space_after = Pt(0)
-        continuation_paragraph.paragraph_format.space_before = Pt(0)
-        apply_html_formatting_to_run(continuation_paragraph, leading_content)
-        
-        if not speaker_matches: # If no speakers were found, we are done
-            return
-            
-        last_processed_index = speaker_matches[0].start()
-    
-    # 2. Iterate through all identified speakers
     for i, match in enumerate(speaker_matches):
         speaker_full = match.group(0) 
         speaker_name = match.group(1).strip()
         start, end = match.span()
         
-        # FIX LỌC: Check for Non-Speaker Phrase
-        if speaker_name.upper() in NON_SPEAKER_PHRASES:
-            # If it's a non-speaker, skip it but ensure the content is passed to the next element
-            last_processed_index = end 
-            continue 
+        # Process Leading Content before the current speaker
+        leading_content = text[last_processed_index:start].strip()
+        if leading_content:
+            continuation_paragraph = document.add_paragraph()
+            continuation_paragraph.paragraph_format.left_indent = TAB_STOP_POSITION
+            continuation_paragraph.paragraph_format.first_line_indent = Inches(-1.0)
+            continuation_paragraph.paragraph_format.tab_stops.add_tab_stop(TAB_STOP_POSITION, WD_TAB_ALIGNMENT.LEFT)
             
+            continuation_paragraph.add_run('\t') 
+            continuation_paragraph.paragraph_format.space_after = Pt(0)
+            continuation_paragraph.paragraph_format.space_before = Pt(0)
+            apply_html_formatting_to_run(continuation_paragraph, leading_content)
+
+        # Check for Non-Speaker Phrase
+        if speaker_name.upper() in NON_SPEAKER_PHRASES:
+            content_block = text[start:] 
+            
+            continuation_paragraph = document.add_paragraph()
+            continuation_paragraph.paragraph_format.left_indent = TAB_STOP_POSITION
+            continuation_paragraph.paragraph_format.first_line_indent = Inches(-1.0)
+            continuation_paragraph.paragraph_format.tab_stops.add_tab_stop(TAB_STOP_POSITION, WD_TAB_ALIGNMENT.LEFT)
+            
+            continuation_paragraph.add_run('\t') 
+            apply_html_formatting_to_run(continuation_paragraph, content_block)
+            continuation_paragraph.paragraph_format.space_after = Pt(0)
+            continuation_paragraph.paragraph_format.space_before = Pt(0)
+            return # Exit function as the rest of the line is handled
+
+        # Process Valid Speaker
+        
         # Determine the content belonging to this speaker
         if i + 1 < len(speaker_matches):
             next_match_start = speaker_matches[i+1].start()
@@ -197,22 +216,21 @@ def format_and_split_dialogue(document, text):
         # Set Tab Stop at 1.0 inch
         new_paragraph.paragraph_format.tab_stops.add_tab_stop(TAB_STOP_POSITION, WD_TAB_ALIGNMENT.LEFT)
         
-        # 1. Run for the speaker name (Bold and Color)
+        # Run for the speaker name (Bold, Font Color, and Highlight)
         font_color_object = get_speaker_color(speaker_name) 
         run_speaker = new_paragraph.add_run(speaker_full)
         run_speaker.font.bold = True
         run_speaker.font.color.rgb = font_color_object 
         
-        # Apply high-contrast highlight
-        run_speaker.font.highlight_color = highlight_map[speaker_name] 
+        run_speaker.font.highlight_color = highlight_map[speaker_name] # Apply high-contrast highlight
         
-        # 2. Conditional Tab logic (1 Tab or 2 Tabs)
+        # Conditional Tab logic (1 Tab or 2 Tabs)
         if len(speaker_full) > 10:
              new_paragraph.add_run('\t\t') 
         else:
              new_paragraph.add_run('\t') 
 
-        # 3. Add dialogue content
+        # Add dialogue content
         if content:
             apply_html_formatting_to_run(new_paragraph, content)
 
@@ -220,8 +238,20 @@ def format_and_split_dialogue(document, text):
         new_paragraph.paragraph_format.space_after = Pt(0)
         new_paragraph.paragraph_format.space_before = Pt(0)
         
-        last_processed_index = next_match_start # Update index
-
+        last_processed_index = next_match_start # Update index for next iteration
+    
+    # Process remaining content after the last speaker
+    remaining_content = text[last_processed_index:].strip()
+    if remaining_content:
+        continuation_paragraph = document.add_paragraph()
+        continuation_paragraph.paragraph_format.left_indent = TAB_STOP_POSITION
+        continuation_paragraph.paragraph_format.first_line_indent = Inches(-1.0)
+        continuation_paragraph.paragraph_format.tab_stops.add_tab_stop(TAB_STOP_POSITION, WD_TAB_ALIGNMENT.LEFT)
+        continuation_paragraph.add_run('\t') 
+        continuation_paragraph.paragraph_format.space_after = Pt(0)
+        continuation_paragraph.paragraph_format.space_before = Pt(0)
+        apply_html_formatting_to_run(continuation_paragraph, remaining_content)
+        
     return 
 
 # --- Main Processing Function ---
@@ -270,6 +300,7 @@ def process_docx(uploaded_file, file_name_without_ext):
              
         for match in SPEAKER_REGEX_DELIMITER.finditer(text):
             speaker_name = match.group(1).strip()
+            # Filter non-speaker names
             if speaker_name.upper() not in NON_SPEAKER_PHRASES and speaker_name not in seen_speakers:
                 seen_speakers.add(speaker_name)
                 unique_speakers_ordered.append(speaker_name)
@@ -313,7 +344,7 @@ def process_docx(uploaded_file, file_name_without_ext):
                 run.font.bold = True
                 run.font.name = 'Times New Roman' 
                 run.font.size = Pt(12) 
-            new_paragraph.paragraph_format.space_after = Pt(6) # 6pt After Timecode
+            new_paragraph.paragraph_format.space_after = Pt(6) 
             new_paragraph.paragraph_format.space_before = Pt(0) 
             
         # Dialogue Content 
@@ -322,6 +353,7 @@ def process_docx(uploaded_file, file_name_without_ext):
             
     # C. Apply Global Formatting (1.5 Lines)
     for paragraph in document.paragraphs[start_index_for_general_format:]:
+        # Apply 1.5 Lines Spacing
         paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE 
         paragraph.paragraph_format.space_before = Pt(0)
         paragraph.paragraph_format.space_after = Pt(0)
