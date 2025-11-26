@@ -4,7 +4,6 @@ from docx.shared import Pt, RGBColor, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.text import WD_LINE_SPACING
 from docx.enum.text import WD_TAB_ALIGNMENT
-from docx.oxml.ns import qn # Import cần thiết cho xử lý XML
 import io
 import os
 import re
@@ -94,7 +93,7 @@ def apply_html_formatting_to_run(paragraph, current_text):
     if last_end < len(current_text):
         paragraph.add_run(current_text[last_end:])
 
-# FIX: Logic mới xử lý căn Tab triệt để
+# Logic xử lý căn Tab triệt để
 def format_and_split_dialogue(document, text):
     """
     Tách một dòng text thô (có thể chứa nhiều người nói) thành các đoạn văn bản 
@@ -179,13 +178,6 @@ def format_and_split_dialogue(document, text):
         run_speaker.font.bold = True
         run_speaker.font.color.rgb = font_color_object 
         
-        # --- FIX: Xóa khoảng trắng sau tên người nói (chỉ khi có một người nói) ---
-        if len(speaker_matches) == 1:
-            r_element = run_speaker._element
-            # Kiểm tra và xóa khoảng trắng (nếu có) ở phần 'tail' của XML run
-            if r_element.tail and r_element.tail.startswith(' '):
-                r_element.tail = r_element.tail[1:]
-        
         # 2. Xử lý Tab Linh hoạt (1 Tab hoặc 2 Tab) - YÊU CẦU CUỐI CÙNG
         # Nếu tên người nói (đã bao gồm ": ") dài hơn 10 ký tự, cần 2 Tabs
         if len(speaker_full) > 10:
@@ -203,7 +195,7 @@ def format_and_split_dialogue(document, text):
         
     return 
 
-# --- Hàm xử lý chính (Giữ nguyên) ---
+# --- Hàm xử lý chính ---
 
 def process_docx(uploaded_file, file_name_without_ext):
     
@@ -218,9 +210,9 @@ def process_docx(uploaded_file, file_name_without_ext):
     
     document = Document()
     
-    # --- A. Set Main Title (FIX: Size 20, 2 Dòng trắng sau) ---
+    # --- A. Set Main Title (FIX: Size 60, Thêm Dòng liệt kê Tên người nói) ---
     
-    # Làm sạch tên file để làm tiêu đề
+    # 1. Làm sạch tên file để làm Tiêu đề
     title_text_raw = file_name_without_ext.upper()
     title_text = title_text_raw.replace("CONVERTED_", "").replace("FORMATTED_", "").replace("_EDIT", "").replace(" (GỐC)", "").strip()
     
@@ -231,10 +223,34 @@ def process_docx(uploaded_file, file_name_without_ext):
     
     title_run = title_paragraph.runs[0]
     title_run.font.name = 'Times New Roman'
-    title_run.font.size = Pt(20) # FIX: Size 20
+    title_run.font.size = Pt(60) # FIX: Gấp 3 lần (20pt * 3 = 60pt)
     title_run.bold = True
     
-    # FIX: Thêm 2 dòng trắng sau tiêu đề
+    # 2. Thu thập tất cả tên người nói duy nhất
+    unique_speakers = set()
+    for paragraph in original_document.paragraphs:
+        text = paragraph.text
+        for match in SPEAKER_REGEX_DELIMITER.finditer(text):
+            unique_speakers.add(match.group(1).strip())
+            
+    sorted_speakers = sorted(list(unique_speakers))
+    
+    # 3. Thêm Dòng liệt kê Tên người nói (Size 12, Normal)
+    if sorted_speakers:
+        speaker_list_text = "NGƯỜI NÓI: " + ", ".join(sorted_speakers)
+        speaker_list_paragraph = document.add_paragraph(speaker_list_text)
+        
+        # Áp dụng định dạng Size 12, không in đậm
+        for run in speaker_list_paragraph.runs:
+            run.font.name = 'Times New Roman'
+            run.font.size = Pt(12)
+            run.font.bold = False
+        
+        # Dãn đoạn 6pt sau dòng liệt kê
+        speaker_list_paragraph.paragraph_format.space_after = Pt(6) 
+        speaker_list_paragraph.paragraph_format.space_before = Pt(0)
+    
+    # Thêm 2 dòng trắng sau tiêu đề (từ yêu cầu trước)
     document.add_paragraph().paragraph_format.space_after = Pt(0)
     document.add_paragraph().paragraph_format.space_after = Pt(0)
 
