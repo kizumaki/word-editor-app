@@ -103,15 +103,12 @@ def format_and_split_dialogue(document, text):
     """
     
     # Tách văn bản thành các phần dựa trên sự xuất hiện của tên người nói
-    # Sử dụng findall để lấy tất cả các cặp (Speaker, Content sau nó)
     parts = SPEAKER_REGEX_DELIMITER.split(text)
     
-    # Nếu không có tên người nói (chỉ có 1 phần tử)
+    # ---------------------------------------------
+    # CASE 1: NO SPEAKER FOUND (Continuation Line)
+    # ---------------------------------------------
     if len(parts) == 1:
-        # ---------------------------------------------
-        # CASE 1: NO SPEAKER FOUND (Continuation Line)
-        # ---------------------------------------------
-        
         new_paragraph = document.add_paragraph()
         
         # Áp dụng cấu trúc Hanging Indent
@@ -119,17 +116,21 @@ def format_and_split_dialogue(document, text):
         new_paragraph.paragraph_format.first_line_indent = Inches(-1.0)
         new_paragraph.paragraph_format.tab_stops.add_tab_stop(Inches(1.0), WD_TAB_ALIGNMENT.LEFT)
         
-        # Thêm 2 tabs cho nội dung tiếp tục (để căn thẳng hàng)
-        new_paragraph.add_run('\t\t')
-        apply_html_formatting_to_run(new_paragraph, text)
+        # Thêm 1 Tab (FIX: 1 Tab cho nội dung tiếp tục, vì tên người nói đã bị ẩn)
+        new_paragraph.add_run('\t')
         
+        # BỎ DÒNG TRẮNG SAU KHI XỬ LÝ
+        # Dòng trắng chỉ được thêm sau timecode
+        new_paragraph.paragraph_format.space_after = Pt(0)
+        
+        apply_html_formatting_to_run(new_paragraph, text)
         return
     
     # ---------------------------------------------
     # CASE 2: ONE OR MORE SPEAKERS FOUND
     # ---------------------------------------------
 
-    # parts[0] là nội dung TRƯỚC người nói đầu tiên (thường là continuation, ví dụ: "...4...")
+    # parts[0] là nội dung TRƯỚC người nói đầu tiên (thường là continuation)
     leading_content = parts[0].strip()
     if leading_content:
         # Tạo một đoạn continuation cho nội dung dẫn đầu này
@@ -137,26 +138,26 @@ def format_and_split_dialogue(document, text):
         continuation_paragraph.paragraph_format.left_indent = Inches(1.0)
         continuation_paragraph.paragraph_format.first_line_indent = Inches(-1.0)
         continuation_paragraph.paragraph_format.tab_stops.add_tab_stop(Inches(1.0), WD_TAB_ALIGNMENT.LEFT)
-        continuation_paragraph.add_run('\t\t') 
+        continuation_paragraph.add_run('\t') # FIX: chỉ 1 Tab cho continuation
+        continuation_paragraph.paragraph_format.space_after = Pt(0) # BỎ DÒNG TRẮNG SAU KHI XỬ LÝ
         apply_html_formatting_to_run(continuation_paragraph, leading_content)
     
     
     # Lặp qua các cặp (Tên người nói + Nội dung)
-    speaker_matches = SPEAKER_REGEX_DELIMITER.finditer(text)
+    speaker_matches = list(SPEAKER_REGEX_DELIMITER.finditer(text))
     
-    i = 0
-    # parts[0] đã được xử lý (leading_content)
-    for match in speaker_matches:
+    # Lặp qua các match để lấy nội dung của từng người nói
+    for i, match in enumerate(speaker_matches):
         speaker_full = match.group(0) # e.g., "Coby: "
         speaker_name = match.group(1).strip() # e.g., "Coby"
         start, end = match.span()
         
-        # Nội dung của người nói hiện tại là phần nằm giữa match hiện tại và match tiếp theo
-        next_match_start = len(text)
-        
-        # Tìm vị trí bắt đầu của người nói tiếp theo
-        if i + 1 < len(list(SPEAKER_REGEX_DELIMITER.finditer(text))):
-            next_match_start = list(SPEAKER_REGEX_DELIMITER.finditer(text))[i+1].start()
+        # Xác định nội dung của người nói hiện tại
+        # Nội dung nằm giữa 'end' và 'start' của người nói tiếp theo, hoặc 'len(text)'
+        if i + 1 < len(speaker_matches):
+            next_match_start = speaker_matches[i+1].start()
+        else:
+            next_match_start = len(text)
             
         content = text[end:next_match_start].strip()
 
@@ -173,18 +174,24 @@ def format_and_split_dialogue(document, text):
         run_speaker.font.bold = True
         run_speaker.font.color.rgb = font_color_object 
         
-        # 2. Thêm 1 Tab
-        new_paragraph.add_run('\t') 
+        # 2. Xử lý Tab Linh hoạt (1 Tab hoặc 2 Tab)
         
+        # Chiều dài tối đa của tên người nói: 1.0 inch (vị trí Tab Stop) tương đương khoảng 10-12 ký tự Times New Roman 12pt
+        # Nếu tên người nói > 10 ký tự, chúng ta cần 2 Tab để căn thẳng
+        if len(speaker_full) > 10:
+             new_paragraph.add_run('\t\t') 
+        else:
+             new_paragraph.add_run('\t') 
+
         # 3. Thêm nội dung
         if content:
             apply_html_formatting_to_run(new_paragraph, content)
 
-        new_paragraph.paragraph_format.space_after = Pt(6) 
+        # BỎ DÒNG TRẮNG SAU KHI XỬ LÝ
+        new_paragraph.paragraph_format.space_after = Pt(0)
         new_paragraph.paragraph_format.space_before = Pt(0)
         
-        i += 1
-
+    return 
 
 # --- Hàm xử lý chính ---
 
@@ -202,8 +209,11 @@ def process_docx(uploaded_file, file_name_without_ext):
     document = Document()
     
     # --- A. Set Main Title ---
-    # Sử dụng tên file gốc (trước khi làm sạch để đặt tên file) làm tiêu đề
-    title_text = file_name_without_ext.upper()
+    # FIX: Loại bỏ tất cả tiền tố/hậu tố để lấy tên gốc, size 20, in đậm
+    
+    # Làm sạch tên file để làm tiêu đề
+    title_text_raw = file_name_without_ext.upper()
+    title_text = title_text_raw.replace("CONVERTED_", "").replace("FORMATTED_", "").replace("_EDIT", "").replace(" (GỐC)", "").strip()
     
     title_paragraph = document.add_paragraph(title_text)
     title_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -212,21 +222,22 @@ def process_docx(uploaded_file, file_name_without_ext):
     
     title_run = title_paragraph.runs[0]
     title_run.font.name = 'Times New Roman'
-    title_run.font.size = Pt(25) 
+    title_run.font.size = Pt(20) # FIX: Size 20
     title_run.bold = True
     
-    document.add_paragraph().paragraph_format.space_after = Pt(0)
-    document.add_paragraph().paragraph_format.space_after = Pt(0)
-
-    # --- B. Process raw paragraphs ---
+    # FIX: BỎ DÒNG TRẮNG SAU TIÊU ĐỀ
     
-    # FIX: BỎ logic gộp đoạn - xử lý từng đoạn riêng biệt
+    # --- B. Process raw paragraphs ---
     
     for paragraph in raw_paragraphs:
         text = paragraph.text.strip()
         if not text:
             continue
         
+        # FIX: BỎ dòng "SRT Conversion:..." hoàn toàn
+        if text.lower().startswith("srt conversion:"):
+            continue 
+            
         # B.1 Remove SRT Line Numbers
         if re.fullmatch(r"^\s*\d+\s*$", text):
             continue 
@@ -236,7 +247,8 @@ def process_docx(uploaded_file, file_name_without_ext):
             new_paragraph = document.add_paragraph(text)
             for run in new_paragraph.runs:
                 run.font.bold = True
-            new_paragraph.paragraph_format.space_after = Pt(0) 
+            new_paragraph.paragraph_format.space_after = Pt(6) # FIX: Dãn đoạn 6pt sau timecode
+            new_paragraph.paragraph_format.space_before = Pt(0) 
             
         # B.3 Dialogue Content
         else:
@@ -255,14 +267,15 @@ def process_docx(uploaded_file, file_name_without_ext):
 # --- FIX Đặt Tên File ---
 def clean_file_name_for_output(original_filename):
     """Xóa tiền tố/hậu tố không mong muốn và thêm '_edit'."""
-    # Xóa phần mở rộng
     name_without_ext = os.path.splitext(original_filename)[0]
     
-    # Xóa các tiền tố được sinh ra từ các lần convert trước
+    # Làm sạch tên file
     cleaned_name = name_without_ext.replace("CONVERTED_", "").replace("FORMATTED_", "").strip()
-    
-    # Xóa (gốc) hoặc bất kỳ nội dung nào trong ngoặc đơn ở cuối
     cleaned_name = re.sub(r'\s*\(.*\)$', '', cleaned_name).strip() 
+    
+    # Kiểm tra và loại bỏ _edit cũ nếu có
+    if cleaned_name.lower().endswith("_edit"):
+         cleaned_name = cleaned_name[:-5].strip()
 
     # Áp dụng hậu tố bắt buộc
     return f"{cleaned_name}_edit.docx"
@@ -290,9 +303,10 @@ if uploaded_file is not None:
     if st.button("2. RUN AUTOMATIC FORMATTING"):
         with st.spinner('Đang xử lý và định dạng file...'):
             try:
+                # Đảm bảo file_name_without_ext truyền vào process_docx vẫn là tên gốc (có thể có tiền tố) để Tiêu đề được đúng
                 modified_file_io = process_docx(uploaded_file, file_name_without_ext)
                 
-                # FIX: Sử dụng hàm làm sạch tên file
+                # Sử dụng hàm làm sạch tên file cho output
                 new_filename = clean_file_name_for_output(original_filename)
 
                 st.success("✅ Định dạng hoàn tất! Bạn có thể tải file về.")
