@@ -13,12 +13,12 @@ import random
 # --- Helper Functions and Constants ---
 
 def generate_vibrant_rgb_colors(count=200):
-    """Generates a list of highly saturated, distinct RGB colors (DARKER for better contrast)."""
+    """Generates a list of highly saturated, distinct RGB colors (BROADER RANGE for diversity)."""
     colors = set()
     while len(colors) < count:
         h = random.random()
-        s = 0.9 
-        v = 0.4 # Medium/Low value for dark contrast font color
+        s = 0.9 # Saturation cao
+        v = 0.8 # FIX: Value cao hơn để đa dạng màu sắc (sáng, trung bình)
         
         if s == 0.0: r = g = b = v
         else:
@@ -31,19 +31,19 @@ def generate_vibrant_rgb_colors(count=200):
             else: r, g, b = v, p, q
         
         r, g, b = int(r * 255), int(g * 255), int(b * 255)
-        # Ensure colors are dark/medium for high contrast on light backgrounds
-        if r > 180 and g > 180 and b > 180: continue 
+        # Hạn chế màu quá tối (sử dụng màu sáng/trung bình)
+        if r < 100 and g < 100 and b < 100: continue 
         colors.add((r, g, b))
     
     return list(colors)
 
 FONT_COLORS_RGB_200 = generate_vibrant_rgb_colors(200) # Sử dụng 200 màu
 speaker_color_map = {}
-highlight_map = {} # Giữ lại map nhưng không dùng
+# Đã loại bỏ highlight_map
 used_colors = []
 
 def get_speaker_color(speaker_name):
-    """Assigns unique, high-contrast color (Font RGB) to a speaker."""
+    """Assigns unique color (Font RGB) to a speaker."""
     global used_colors
     global speaker_color_map
     
@@ -51,7 +51,7 @@ def get_speaker_color(speaker_name):
         if used_colors:
             color_object = used_colors.pop()
         else:
-            r, g, b = random.choice(FONT_COLORS_RGB_200) # Sử dụng pool 200
+            r, g, b = random.choice(FONT_COLORS_RGB_200) 
             color_object = RGBColor(r, g, b)
             
         speaker_color_map[speaker_name] = color_object
@@ -60,12 +60,11 @@ def get_speaker_color(speaker_name):
         
     return speaker_color_map[speaker_name]
 
-# List of common phrases mistakenly identified as speakers (for filtering)
+# FIX: Danh sách các cụm từ KHÔNG phải là tên người nói (Đã loại bỏ các vai trò hợp lệ)
 NON_SPEAKER_PHRASES = {
     "AND REMEMBER", "OFFICIAL DISTANCE", "GOOD NEWS FOR THEIR TEAMMATES", 
     "LL BE HONEST", "FIRST AND FOREMOST", "I SAID", "THE ONLY THING LEFT TO SETTLE", 
-    "QUESTION IS", "FINALISTS", "CONTESTANTS", "TEAM PURPLE", "TEAM GREEN", 
-    "TEAM PINK", "DUDE PERFECT", "TITLE VO", "WHISPERS", "SRT CONVERSION", 
+    "QUESTION IS", "FINALISTS", "WHISPERS", "SRT CONVERSION", 
     "WILL RED THRIVE OR WILL RED BE DEAD", "BUT REMEMBER", "THE RESULTS ARE IN", 
     "WE CHALLENGED", "I THINK", "IN THEIR DEFENSE", "THE PEAK OF HIS LIFE WAS DOING THE SPACETHING",
     "THE ROCKETS ARE BIGGER", "THE DISTANCE SHOULD BE FURTHER", "GET CRAFTY", "THAT WAS SO SICK",
@@ -214,8 +213,6 @@ def format_and_split_dialogue(document, text):
         run_speaker.font.bold = True
         run_speaker.font.color.rgb = font_color_object 
         
-        # KHÔNG GÁN MÀU HIGHLIGHT
-        
         # 2. Xử lý Tab Linh hoạt (1 Tab hoặc 2 Tabs)
         if len(speaker_full) > 10:
              new_paragraph.add_run('\t\t') 
@@ -246,7 +243,7 @@ def format_and_split_dialogue(document, text):
         
     return 
 
-# --- Hàm xử lý chính ---
+# --- Main Processing Function ---
 
 def process_docx(uploaded_file, file_name_without_ext):
     
@@ -257,7 +254,7 @@ def process_docx(uploaded_file, file_name_without_ext):
     # Reset maps and shuffle color pool for unique assignment per file run
     speaker_color_map = {}
     highlight_map = {} 
-    used_colors_rgb = [RGBColor(r, g, b) for r, g, b in FONT_COLORS_RGB_200] # FIX: Sử dụng pool 200
+    used_colors_rgb = [RGBColor(r, g, b) for r, g, b in FONT_COLORS_RGB_200] # Sử dụng pool 200
     random.shuffle(used_colors_rgb)
     used_colors = used_colors_rgb 
     
