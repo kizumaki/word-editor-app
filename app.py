@@ -69,7 +69,24 @@ NON_SPEAKER_PHRASES = {
     "THE ROCKETS ARE BIGGER", "THE DISTANCE SHOULD BE FURTHER", "GET CRAFTY", "THAT WAS SO SICK",
     "OUT OF 100 CONTESTANTS", "THE FIRST ROUND IS BRUTAL", "YOU KNOW WHICH END GOES",
     "THE GAME IS ON", "THAT'S A GOOD THROW", "HE'S GOING FOR IT", "WE GOT THIS",
-    "LAUNCH", "OH NO", "OH", "AH", "YEP", "WAIT", "YEAH", "WOO", "OKAY", "YES", "I ANH", "o Bri", "ng",
+    "LAUNCH", "OH NO", "OH", "AH", "YEP", "WAIT", "YEAH", "WOO", "OKAY", "YES", "I ANH", "o Bri", "ng", "the only problem", "note", "warning", "things", "and on the way we came across this", 
+    "this is the highest swing in europe", "and i swear", "which meant", "the only thing is", 
+    "and remember", "official distance", "first and foremost", "i said", 
+    "here we go", "next up", "step 1", "step 2", "step 3", "and step 3", "first up", 
+    "so the question is", "i was growing up", "you might be wondering", "update", 
+    "nashville to miami", "all i know is", "unlike judy", "the good news is", 
+    "aer lingus seat", "the true test is", "just as i suspected", "like i said", 
+    "star review and said", "i told them all", "and best of all", "the point is", 
+    "americans", "i was thinking", "and they go", "first of all", "second", 
+    "are you like", "as a reminder", "round 2", "round 1", "round 3", "round 4", 
+    "round 5", "welcome to round 3", "the question is", "quick reminder", 
+    "in 2nd place", "coming up", "first stop", "next step", "and that means", 
+    "hashtag", "so to be clear", "your second word", "welcome to round 6", 
+    "battle finale time", "number 1", "number 2", "but the truth is", 
+    "score to beat", "and your winner", "\"crafty\" and \"betcha\". coming up", 
+    "next one", "keep in mind", "and it says", "you could say", "welcome to round 2", 
+    "and the best part", "onto round 2", "the ride we chose", "good news is", 
+    "bad news", "good news", "he thought", "3 teams remain"
 }
 
 # Regexes remain the same
