@@ -13,12 +13,12 @@ import random
 # --- Helper Functions and Constants ---
 
 def generate_vibrant_rgb_colors(count=150):
-    """Generates a list of highly saturated, distinct RGB colors (DEEPER DARK for high contrast)."""
+    """Generates a list of highly saturated, distinct RGB colors (DARKER for better contrast)."""
     colors = set()
     while len(colors) < count:
         h = random.random()
         s = 0.9 
-        v = 0.35 # FIX: Giá trị thấp hơn để đảm bảo màu chữ tối (Dark Font)
+        v = 0.4 # Medium/Low value for dark contrast font color
         
         if s == 0.0: r = g = b = v
         else:
@@ -39,26 +39,13 @@ def generate_vibrant_rgb_colors(count=150):
 
 FONT_COLORS_RGB_150 = generate_vibrant_rgb_colors(150)
 speaker_color_map = {}
-highlight_map = {} 
+# Đã loại bỏ highlight_map
 used_colors = []
 
-# FIX: THAY THẾ TÊN HẰNG SỐ BẰNG GIÁ TRỊ SỐ NGUYÊN (ỔN ĐỊNH NHẤT)
-HIGHLIGHT_CYCLE = [
-    6,  # YELLOW
-    3,  # TURQUOISE
-    14, # PINK
-    11, # BRIGHT_GREEN
-    1,  # PALE_BLUE
-    5,  # LIGHT_ORANGE
-    15, # TEAL
-    13  # VIOLET
-] 
-
 def get_speaker_color(speaker_name):
-    """Assigns unique, high-contrast color (Font RGB + Safe Highlight Index) to a speaker."""
+    """Assigns unique, high-contrast color (Font RGB) to a speaker."""
     global used_colors
     global speaker_color_map
-    global highlight_map
     
     if speaker_name not in speaker_color_map:
         if used_colors:
@@ -69,9 +56,7 @@ def get_speaker_color(speaker_name):
             
         speaker_color_map[speaker_name] = color_object
         
-        # Assign unique highlight color index
-        speaker_id = len(speaker_color_map)
-        highlight_map[speaker_name] = HIGHLIGHT_CYCLE[speaker_id % len(HIGHLIGHT_CYCLE)]
+        # KHÔNG GÁN MÀU HIGHLIGHT
         
     return speaker_color_map[speaker_name]
 
@@ -223,21 +208,22 @@ def format_and_split_dialogue(document, text):
         # Set Tab Stop at 1.0 inch
         new_paragraph.paragraph_format.tab_stops.add_tab_stop(TAB_STOP_POSITION, WD_TAB_ALIGNMENT.LEFT)
         
-        # Run for the speaker name (Bold, Font Color, and Highlight)
+        # Run for the speaker name (Bold và Color)
         font_color_object = get_speaker_color(speaker_name) 
         run_speaker = new_paragraph.add_run(speaker_full)
         run_speaker.font.bold = True
         run_speaker.font.color.rgb = font_color_object 
         
-        run_speaker.font.highlight_color = highlight_map[speaker_name] # Apply high-contrast highlight
+        # FIX: LOẠI BỎ HIGHLIGHT HOÀN TOÀN
+        # run_speaker.font.highlight_color = highlight_map[speaker_name] 
         
-        # Conditional Tab logic (1 Tab or 2 Tabs)
+        # 2. Xử lý Tab Linh hoạt (1 Tab hoặc 2 Tabs)
         if len(speaker_full) > 10:
              new_paragraph.add_run('\t\t') 
         else:
              new_paragraph.add_run('\t') 
 
-        # Add dialogue content
+        # 3. Thêm nội dung (NẰM TRÊN CÙNG DÒNG VỚI TÊN NGƯỜI NÓI)
         if content:
             apply_html_formatting_to_run(new_paragraph, content)
 
@@ -335,9 +321,9 @@ def process_docx(uploaded_file, file_name_without_ext):
         text = paragraph.text.strip()
         if not text:
             continue
-        
+            
         # FIX: Loại bỏ dòng văn bản thừa có cùng tên với Tiêu đề
-        if text.lower() == title_text.lower():
+        if text.upper() == title_text.upper():
             continue
         
         if text.lower().startswith("srt conversion") or text.lower().startswith("converted_"):
