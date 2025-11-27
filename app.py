@@ -13,12 +13,12 @@ import random
 # --- Helper Functions and Constants ---
 
 def generate_vibrant_rgb_colors(count=150):
-    """Generates a list of highly saturated, distinct RGB colors (DARKER for better contrast)."""
+    """Generates a list of highly saturated, distinct RGB colors (DEEPER DARK for high contrast)."""
     colors = set()
     while len(colors) < count:
         h = random.random()
         s = 0.9 
-        v = 0.4 # Medium/Low value for dark contrast font color
+        v = 0.35 # FIX: Giá trị thấp hơn để đảm bảo màu chữ tối (Dark Font)
         
         if s == 0.0: r = g = b = v
         else:
@@ -295,7 +295,7 @@ def process_docx(uploaded_file, file_name_without_ext):
     title_run.font.size = Pt(20) 
     title_run.bold = True
     
-    # 2. Thu thập và Thêm Danh sách Người nói (Size 12)
+    # 2. Collect and Add Speaker List (Size 12)
     unique_speakers_ordered = []
     seen_speakers = set()
     
@@ -335,7 +335,7 @@ def process_docx(uploaded_file, file_name_without_ext):
         text = paragraph.text.strip()
         if not text:
             continue
-            
+        
         # FIX: Loại bỏ dòng văn bản thừa có cùng tên với Tiêu đề
         if text.lower() == title_text.lower():
             continue
