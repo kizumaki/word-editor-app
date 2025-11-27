@@ -13,12 +13,12 @@ import random
 # --- Helper Functions and Constants ---
 
 def generate_vibrant_rgb_colors(count=200):
-    """Generates a list of highly saturated, distinct RGB colors (BROADER RANGE for diversity)."""
+    """Generates a list of highly saturated, distinct RGB colors (BROADER SPECTRUM for diversity)."""
     colors = set()
     while len(colors) < count:
         h = random.random()
         s = 0.9 # Saturation cao
-        v = 0.8 # FIX: Value cao hơn để đa dạng màu sắc (sáng, trung bình)
+        v = 0.8 # Value/Brightness cao (sử dụng dải màu rộng hơn)
         
         if s == 0.0: r = g = b = v
         else:
@@ -31,19 +31,17 @@ def generate_vibrant_rgb_colors(count=200):
             else: r, g, b = v, p, q
         
         r, g, b = int(r * 255), int(g * 255), int(b * 255)
-        # Hạn chế màu quá tối (sử dụng màu sáng/trung bình)
-        if r < 100 and g < 100 and b < 100: continue 
+        # Không giới hạn màu tối/sáng để tối đa hóa sự đa dạng
         colors.add((r, g, b))
     
     return list(colors)
 
 FONT_COLORS_RGB_200 = generate_vibrant_rgb_colors(200) # Sử dụng 200 màu
 speaker_color_map = {}
-# Đã loại bỏ highlight_map
 used_colors = []
 
 def get_speaker_color(speaker_name):
-    """Assigns unique color (Font RGB) to a speaker."""
+    """Assigns unique, diverse color (Font RGB) to a speaker."""
     global used_colors
     global speaker_color_map
     
@@ -51,20 +49,21 @@ def get_speaker_color(speaker_name):
         if used_colors:
             color_object = used_colors.pop()
         else:
-            r, g, b = random.choice(FONT_COLORS_RGB_200) 
+            r, g, b = random.choice(FONT_COLORS_RGB_200) # Sử dụng pool 200
             color_object = RGBColor(r, g, b)
             
         speaker_color_map[speaker_name] = color_object
         
-        # KHÔNG GÁN MÀU HIGHLIGHT
+        # ĐÃ LOẠI BỎ HIGHLIGHT HOÀN TOÀN
         
     return speaker_color_map[speaker_name]
 
-# FIX: Danh sách các cụm từ KHÔNG phải là tên người nói (Đã loại bỏ các vai trò hợp lệ)
+# List of common phrases mistakenly identified as speakers (for filtering)
 NON_SPEAKER_PHRASES = {
     "AND REMEMBER", "OFFICIAL DISTANCE", "GOOD NEWS FOR THEIR TEAMMATES", 
     "LL BE HONEST", "FIRST AND FOREMOST", "I SAID", "THE ONLY THING LEFT TO SETTLE", 
-    "QUESTION IS", "FINALISTS", "WHISPERS", "SRT CONVERSION", 
+    "QUESTION IS", "FINALISTS", "CONTESTANTS", "TEAM PURPLE", "TEAM GREEN", 
+    "TEAM PINK", "DUDE PERFECT", "TITLE VO", "WHISPERS", "SRT CONVERSION", 
     "WILL RED THRIVE OR WILL RED BE DEAD", "BUT REMEMBER", "THE RESULTS ARE IN", 
     "WE CHALLENGED", "I THINK", "IN THEIR DEFENSE", "THE PEAK OF HIS LIFE WAS DOING THE SPACETHING",
     "THE ROCKETS ARE BIGGER", "THE DISTANCE SHOULD BE FURTHER", "GET CRAFTY", "THAT WAS SO SICK",
