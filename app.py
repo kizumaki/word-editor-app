@@ -149,7 +149,7 @@ def format_and_split_dialogue(document, text):
     if len(parts) == 1:
         new_paragraph = document.add_paragraph()
         
-        # Apply Hanging Indent structure
+        # Áp dụng cấu trúc Hanging Indent
         new_paragraph.paragraph_format.left_indent = TAB_STOP_POSITION
         new_paragraph.paragraph_format.first_line_indent = Inches(-1.0) 
         new_paragraph.paragraph_format.tab_stops.add_tab_stop(TAB_STOP_POSITION, WD_TAB_ALIGNMENT.LEFT)
@@ -335,6 +335,10 @@ def process_docx(uploaded_file, file_name_without_ext):
         text = paragraph.text.strip()
         if not text:
             continue
+        
+        # FIX: Bỏ dòng thừa ở đầu file
+        if text.lower().startswith("100 person rocket battle"):
+             continue
         
         if text.lower().startswith("srt conversion") or text.lower().startswith("converted_"):
             continue 
