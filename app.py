@@ -42,14 +42,16 @@ speaker_color_map = {}
 highlight_map = {} 
 used_colors = []
 
-# FIX: Chỉ giữ lại các màu Highlight SÁNG/TRUNG TÍNH (để đảm bảo khả năng đọc)
+# FIX: THAY THẾ TÊN HẰNG SỐ BẰNG GIÁ TRỊ SỐ NGUYÊN (ỔN ĐỊNH NHẤT)
 HIGHLIGHT_CYCLE = [
     6,  # YELLOW
     3,  # TURQUOISE
     14, # PINK
     11, # BRIGHT_GREEN
     1,  # PALE_BLUE
-    5   # LIGHT_ORANGE
+    5,  # LIGHT_ORANGE
+    15, # TEAL
+    13  # VIOLET
 ] 
 
 def get_speaker_color(speaker_name):
@@ -200,7 +202,7 @@ def format_and_split_dialogue(document, text):
             apply_html_formatting_to_run(continuation_paragraph, content_block)
             continuation_paragraph.paragraph_format.space_after = Pt(0)
             continuation_paragraph.paragraph_format.space_before = Pt(0)
-            return # Thoát khỏi hàm nếu đã xử lý như một khối mô tả
+            return # Exit function as the rest of the line is handled
 
         # Process Valid Speaker
         
@@ -218,10 +220,10 @@ def format_and_split_dialogue(document, text):
         new_paragraph.paragraph_format.left_indent = TAB_STOP_POSITION
         new_paragraph.paragraph_format.first_line_indent = Inches(-1.0)
         
-        # Đặt Tab Stop ở vị trí 1.0 inch
+        # Set Tab Stop at 1.0 inch
         new_paragraph.paragraph_format.tab_stops.add_tab_stop(TAB_STOP_POSITION, WD_TAB_ALIGNMENT.LEFT)
         
-        # 1. Run cho tên người nói (Bold và Color)
+        # Run for the speaker name (Bold, Font Color, and Highlight)
         font_color_object = get_speaker_color(speaker_name) 
         run_speaker = new_paragraph.add_run(speaker_full)
         run_speaker.font.bold = True
@@ -229,21 +231,21 @@ def format_and_split_dialogue(document, text):
         
         run_speaker.font.highlight_color = highlight_map[speaker_name] # Apply high-contrast highlight
         
-        # 2. Xử lý Tab Linh hoạt (1 Tab hoặc 2 Tab)
+        # Conditional Tab logic (1 Tab or 2 Tabs)
         if len(speaker_full) > 10:
              new_paragraph.add_run('\t\t') 
         else:
              new_paragraph.add_run('\t') 
 
-        # 3. Thêm nội dung (NẰM TRÊN CÙNG DÒNG VỚI TÊN NGƯỜI NÓI)
+        # Add dialogue content
         if content:
             apply_html_formatting_to_run(new_paragraph, content)
 
-        # BỎ DÒNG TRẮNG SAU KHI XỬ LÝ
+        # Spacing
         new_paragraph.paragraph_format.space_after = Pt(0)
         new_paragraph.paragraph_format.space_before = Pt(0)
         
-        last_processed_index = next_match_start # Cập nhật vị trí xử lý cuối cùng
+        last_processed_index = next_match_start # Update index for next iteration
     
     # Process remaining content after the last speaker
     remaining_content = text[last_processed_index:].strip()
@@ -259,7 +261,7 @@ def format_and_split_dialogue(document, text):
         
     return 
 
-# --- Hàm xử lý chính ---
+# --- Main Processing Function ---
 
 def process_docx(uploaded_file, file_name_without_ext):
     
@@ -304,7 +306,7 @@ def process_docx(uploaded_file, file_name_without_ext):
              
         for match in SPEAKER_REGEX_DELIMITER.finditer(text):
             speaker_name = match.group(1).strip()
-            # Lọc tên người nói giả
+            # Filter non-speaker names
             if speaker_name.upper() not in NON_SPEAKER_PHRASES and speaker_name not in seen_speakers:
                 seen_speakers.add(speaker_name)
                 unique_speakers_ordered.append(speaker_name)
@@ -321,7 +323,7 @@ def process_docx(uploaded_file, file_name_without_ext):
         speaker_list_paragraph.paragraph_format.space_after = Pt(6) 
         speaker_list_paragraph.paragraph_format.space_before = Pt(0)
     
-    # 3. Thêm 2 dòng trắng sau tiêu đề
+    # 3. Add 2 blank lines
     document.add_paragraph().paragraph_format.space_after = Pt(0)
     document.add_paragraph().paragraph_format.space_after = Pt(0)
     
@@ -333,16 +335,19 @@ def process_docx(uploaded_file, file_name_without_ext):
         text = paragraph.text.strip()
         if not text:
             continue
+            
+        # FIX: Loại bỏ dòng văn bản thừa có cùng tên với Tiêu đề
+        if text.lower() == title_text.lower():
+            continue
         
-        # FIX: BỎ dòng "SRT Conversion:..." hoàn toàn
         if text.lower().startswith("srt conversion") or text.lower().startswith("converted_"):
             continue 
             
-        # B.1 Remove SRT Line Numbers
+        # Remove Line Numbers
         if re.fullmatch(r"^\s*\d+\s*$", text):
             continue 
             
-        # B.2 Timecode (Có dãn đoạn 6pt sau Timecode)
+        # Timecode
         if TIMECODE_REGEX.match(text):
             new_paragraph = document.add_paragraph(text)
             for run in new_paragraph.runs:
@@ -352,7 +357,7 @@ def process_docx(uploaded_file, file_name_without_ext):
             new_paragraph.paragraph_format.space_after = Pt(6) 
             new_paragraph.paragraph_format.space_before = Pt(0) 
             
-        # B.3 Dialogue Content 
+        # Dialogue Content 
         else:
             format_and_split_dialogue(document, text)
             
