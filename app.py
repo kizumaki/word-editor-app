@@ -133,33 +133,30 @@ def apply_html_formatting_to_run(paragraph, current_text):
     if last_end < len(current_text):
         paragraph.add_run(current_text[last_end:])
 
-# Logic xử lý căn Tab triệt để
+# Logic for handling Tabs and Indentation (Hanging Indent structure)
 def format_and_split_dialogue(document, text):
     """
-    Tách một dòng text thô (có thể chứa nhiều người nói) thành các đoạn văn bản 
-    riêng biệt và áp dụng định dạng căn lề/Tab chính xác.
+    Splits a raw text line (which might contain multi-speakers) into separate dialogue 
+    paragraphs and applies the required Tab/Hanging Indent formatting.
     """
     
     parts = SPEAKER_REGEX_DELIMITER.split(text)
-    TAB_STOP_POSITION = Inches(1.0) # Vị trí căn thẳng lời thoại
+    TAB_STOP_POSITION = Inches(1.0) # Dialogue start position
     
-    # Lấy danh sách match người nói
-    speaker_matches = list(SPEAKER_REGEX_DELIMITER.finditer(text))
-
     # ---------------------------------------------
     # CASE 1: NO SPEAKER FOUND (Continuation Line)
     # ---------------------------------------------
-    if not speaker_matches:
+    if len(parts) == 1:
         new_paragraph = document.add_paragraph()
         
-        # Áp dụng cấu trúc Hanging Indent
+        # Apply Hanging Indent structure
         new_paragraph.paragraph_format.left_indent = TAB_STOP_POSITION
         new_paragraph.paragraph_format.first_line_indent = Inches(-1.0) 
         new_paragraph.paragraph_format.tab_stops.add_tab_stop(TAB_STOP_POSITION, WD_TAB_ALIGNMENT.LEFT)
         
-        new_paragraph.add_run('\t') # Luôn chỉ dùng 1 Tab cho nội dung tiếp tục
+        new_paragraph.add_run('\t') # Always use 1 Tab for continuation
         
-        # BỎ DÒNG TRẮNG SAU KHI XỬ LÝ (Áp dụng Pt(0))
+        # Spacing
         new_paragraph.paragraph_format.space_after = Pt(0) 
         new_paragraph.paragraph_format.space_before = Pt(0)
         
@@ -167,9 +164,11 @@ def format_and_split_dialogue(document, text):
         return
     
     # ---------------------------------------------
-    # CASE 2: ONE HOẶC NHIỀU SPEAKERS FOUND
+    # CASE 2: ONE OR MORE SPEAKERS FOUND
     # ---------------------------------------------
 
+    # Iterate through all identified speakers
+    speaker_matches = list(SPEAKER_REGEX_DELIMITER.finditer(text))
     last_processed_index = 0
     
     for i, match in enumerate(speaker_matches):
@@ -203,11 +202,11 @@ def format_and_split_dialogue(document, text):
             apply_html_formatting_to_run(continuation_paragraph, content_block)
             continuation_paragraph.paragraph_format.space_after = Pt(0)
             continuation_paragraph.paragraph_format.space_before = Pt(0)
-            return # Thoát khỏi hàm nếu đã xử lý như một khối mô tả
-            
+            return # Exit function as the rest of the line is handled
+
         # Process Valid Speaker
         
-        # Xác định nội dung của người nói hiện tại
+        # Determine the content belonging to this speaker
         if i + 1 < len(speaker_matches):
             next_match_start = speaker_matches[i+1].start()
         else:
@@ -217,14 +216,14 @@ def format_and_split_dialogue(document, text):
 
         new_paragraph = document.add_paragraph()
         
-        # Áp dụng cấu trúc Hanging Indent cho tất cả các dòng đối thoại
+        # Apply Hanging Indent structure for all dialogue lines
         new_paragraph.paragraph_format.left_indent = TAB_STOP_POSITION
         new_paragraph.paragraph_format.first_line_indent = Inches(-1.0)
         
-        # Đặt Tab Stop ở vị trí 1.0 inch
+        # Set Tab Stop at 1.0 inch
         new_paragraph.paragraph_format.tab_stops.add_tab_stop(TAB_STOP_POSITION, WD_TAB_ALIGNMENT.LEFT)
         
-        # 1. Run cho tên người nói (Bold và Color)
+        # Run for the speaker name (Bold, Font Color, and Highlight)
         font_color_object = get_speaker_color(speaker_name) 
         run_speaker = new_paragraph.add_run(speaker_full)
         run_speaker.font.bold = True
@@ -232,21 +231,21 @@ def format_and_split_dialogue(document, text):
         
         run_speaker.font.highlight_color = highlight_map[speaker_name] # Apply high-contrast highlight
         
-        # 2. Xử lý Tab Linh hoạt (1 Tab hoặc 2 Tab)
+        # Conditional Tab logic (1 Tab or 2 Tabs)
         if len(speaker_full) > 10:
              new_paragraph.add_run('\t\t') 
         else:
              new_paragraph.add_run('\t') 
 
-        # 3. Thêm nội dung (NẰM TRÊN CÙNG DÒNG VỚI TÊN NGƯỜI NÓI)
+        # Add dialogue content
         if content:
             apply_html_formatting_to_run(new_paragraph, content)
 
-        # BỎ DÒNG TRẮNG SAU KHI XỬ LÝ
+        # Spacing
         new_paragraph.paragraph_format.space_after = Pt(0)
         new_paragraph.paragraph_format.space_before = Pt(0)
         
-        last_processed_index = next_match_start # Cập nhật vị trí xử lý cuối cùng
+        last_processed_index = next_match_start # Update index for next iteration
     
     # Process remaining content after the last speaker
     remaining_content = text[last_processed_index:].strip()
@@ -262,7 +261,7 @@ def format_and_split_dialogue(document, text):
         
     return 
 
-# --- Hàm xử lý chính ---
+# --- Main Processing Function ---
 
 def process_docx(uploaded_file, file_name_without_ext):
     
@@ -270,7 +269,7 @@ def process_docx(uploaded_file, file_name_without_ext):
     global used_colors
     global highlight_map 
     
-    # Reset maps và shuffle color pool for unique assignment per file run
+    # Reset maps and shuffle color pool for unique assignment per file run
     speaker_color_map = {}
     highlight_map = {} 
     used_colors_rgb = [RGBColor(r, g, b) for r, g, b in FONT_COLORS_RGB_150]
