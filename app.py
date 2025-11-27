@@ -38,6 +38,7 @@ def generate_vibrant_rgb_colors(count=200):
 
 FONT_COLORS_RGB_200 = generate_vibrant_rgb_colors(200) # Sử dụng 200 màu
 speaker_color_map = {}
+highlight_map = {} # Giữ lại map nhưng không dùng
 used_colors = []
 
 def get_speaker_color(speaker_name):
@@ -68,7 +69,7 @@ NON_SPEAKER_PHRASES = {
     "THE ROCKETS ARE BIGGER", "THE DISTANCE SHOULD BE FURTHER", "GET CRAFTY", "THAT WAS SO SICK",
     "OUT OF 100 CONTESTANTS", "THE FIRST ROUND IS BRUTAL", "YOU KNOW WHICH END GOES",
     "THE GAME IS ON", "THAT'S A GOOD THROW", "HE'S GOING FOR IT", "WE GOT THIS",
-    "LAUNCH", "OH NO", "OH", "AH", "YEP", "WAIT", "YEAH", "WOO", "OKAY", "YES"
+    "LAUNCH", "OH NO", "OH", "AH", "YEP", "WAIT", "YEAH", "WOO", "OKAY", "YES", "I ANH", 
 }
 
 # Regexes remain the same
@@ -205,11 +206,13 @@ def format_and_split_dialogue(document, text):
         # Set Tab Stop at 1.0 inch
         new_paragraph.paragraph_format.tab_stops.add_tab_stop(TAB_STOP_POSITION, WD_TAB_ALIGNMENT.LEFT)
         
-        # 1. Run cho tên người nói (Bold và Color)
+        # Run for the speaker name (Bold và Color)
         font_color_object = get_speaker_color(speaker_name) 
         run_speaker = new_paragraph.add_run(speaker_full)
         run_speaker.font.bold = True
         run_speaker.font.color.rgb = font_color_object 
+        
+        # ĐÃ LOẠI BỎ HIGHLIGHT HOÀN TOÀN
         
         # 2. Xử lý Tab Linh hoạt (1 Tab hoặc 2 Tabs)
         if len(speaker_full) > 10:
@@ -225,7 +228,7 @@ def format_and_split_dialogue(document, text):
         new_paragraph.paragraph_format.space_after = Pt(0)
         new_paragraph.paragraph_format.space_before = Pt(0)
         
-        last_processed_index = next_match_start # Cập nhật vị trí xử lý cuối cùng
+        last_processed_index = next_match_start # Update index for next iteration
     
     # Process remaining content after the last speaker
     remaining_content = text[last_processed_index:].strip()
@@ -252,7 +255,7 @@ def process_docx(uploaded_file, file_name_without_ext):
     # Reset maps and shuffle color pool for unique assignment per file run
     speaker_color_map = {}
     highlight_map = {} 
-    used_colors_rgb = [RGBColor(r, g, b) for r, g, b in FONT_COLORS_RGB_200] # Sử dụng pool 200
+    used_colors_rgb = [RGBColor(r, g, b) for r, g, b in FONT_COLORS_RGB_200] 
     random.shuffle(used_colors_rgb)
     used_colors = used_colors_rgb 
     
